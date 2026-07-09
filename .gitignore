@@ -1,0 +1,40 @@
+# secrets / local settings
+.env
+.env.*
+!.env.example
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.venv/
+venv/
+env/
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+
+# runtime data
+/data/*
+!/data/.gitkeep
+*.db
+*.sqlite
+*.sqlite3
+brief_cache.json
+
+# generated / local uploads
+uploads/
+db/
+screenshots/
+*.log
+*.pid
+
+# OS / editor
+.DS_Store
+.vscode/
+.idea/
+
+# Docker files intentionally not used in this server package
+Dockerfile
+docker-compose*.yml
