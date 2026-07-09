@@ -1,0 +1,14 @@
+[Unit]
+Description=G-DAPS automatic wildfire monitor
+After=network.target gdaps-api.service
+
+[Service]
+Type=simple
+WorkingDirectory=/opt/gdaps
+EnvironmentFile=/opt/gdaps/.env
+ExecStart=/opt/gdaps/scripts/start_monitor.sh
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target

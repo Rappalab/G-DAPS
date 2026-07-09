@@ -1,0 +1,1964 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>G-DAPS</title>
+
+<!-- Leaflet -->
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<!-- Google Fonts -->
+<!-- jsPDF -->
+<script src="https://unpkg.com/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
+<script src="https://unpkg.com/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet"/>
+
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --bg-glass: rgba(10, 14, 22, 0.82);
+  --bg-glass-light: rgba(20, 28, 44, 0.72);
+  --border: rgba(255,255,255,0.08);
+  --border-bright: rgba(255,255,255,0.16);
+  --text-primary: #f0f4ff;
+  --text-secondary: rgba(200,210,230,0.7);
+  --text-dim: rgba(160,175,200,0.5);
+  --accent-fire: #ff5c2b;
+  --accent-fire-glow: rgba(255,92,43,0.35);
+  --accent-blue: #3d9aff;
+  --accent-blue-glow: rgba(61,154,255,0.25);
+  --accent-green: #2dca8c;
+  --accent-warn: #f5a623;
+  --accent-danger: #ff4757;
+  --panel-radius: 16px;
+  --blur: blur(20px) saturate(1.6);
+}
+
+html, body {
+  width: 100%; height: 100%;
+  overflow: hidden;
+  font-family: 'Noto Sans KR', sans-serif;
+  background: #0a0e16;
+}
+
+/* ── MAP ── */
+#map {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+}
+.leaflet-control-zoom {
+  border: none !important;
+  box-shadow: none !important;
+}
+.leaflet-control-zoom a {
+  background: var(--bg-glass) !important;
+  backdrop-filter: var(--blur);
+  color: var(--text-primary) !important;
+  border: 1px solid var(--border) !important;
+  border-radius: 8px !important;
+  margin-bottom: 4px !important;
+  width: 32px !important; height: 32px !important;
+  line-height: 32px !important;
+  font-size: 16px !important;
+  transition: background 0.2s;
+}
+.leaflet-control-zoom a:hover { background: var(--bg-glass-light) !important; }
+.leaflet-attribution-flag { display: none !important; }
+.leaflet-control-attribution {
+  background: rgba(0,0,0,0.4) !important;
+  color: rgba(255,255,255,0.3) !important;
+  font-size: 10px !important;
+  backdrop-filter: blur(4px);
+}
+
+/* ── OVERLAY LAYER ── */
+#overlay {
+  position: fixed; inset: 0;
+  z-index: 100;
+  pointer-events: none;
+}
+#overlay > * { pointer-events: all; }
+
+/* ── TOP BAR ── */
+#topbar {
+  position: absolute;
+  top: 16px; left: 50%; transform: translateX(-50%);
+  background: var(--bg-glass);
+  backdrop-filter: var(--blur);
+  border: 1px solid var(--border);
+  border-radius: 50px;
+  padding: 8px 20px;
+  display: flex; align-items: center; gap: 16px;
+  white-space: nowrap;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.5);
+}
+#topbar .logo {
+  font-size: 15px; font-weight: 800; letter-spacing: 2px;
+  color: var(--accent-fire);
+  text-shadow: 0 0 20px var(--accent-fire-glow);
+}
+#topbar .sep { width: 1px; height: 18px; background: var(--border-bright); }
+#topbar .status-dot {
+  width: 7px; height: 7px; border-radius: 50%;
+  background: var(--accent-green);
+  box-shadow: 0 0 8px var(--accent-green);
+  animation: pulse-dot 2s infinite;
+}
+@keyframes pulse-dot {
+  0%,100% { opacity: 1; } 50% { opacity: 0.4; }
+}
+#topbar .status-text {
+  font-size: 12px; color: var(--text-secondary); font-weight: 500;
+}
+.topbar-btn {
+  background: rgba(255,255,255,0.06);
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  color: var(--text-primary);
+  font-family: inherit; font-size: 12px; font-weight: 600;
+  padding: 5px 14px; cursor: pointer;
+  transition: all 0.2s;
+}
+.topbar-btn:hover { background: rgba(255,255,255,0.12); border-color: var(--border-bright); }
+.topbar-btn.primary {
+  background: var(--accent-fire);
+  border-color: transparent;
+  color: #fff;
+  box-shadow: 0 0 16px var(--accent-fire-glow);
+}
+.topbar-btn.primary:hover { background: #ff7145; }
+
+/* ── LEFT PANEL ── */
+#left-panel {
+  position: absolute;
+  top: 72px; left: 16px; bottom: 56px;
+  width: 272px;
+  display: flex; flex-direction: column; gap: 8px;
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255,255,255,0.12) transparent;
+  padding-right: 2px;
+}
+#left-panel::-webkit-scrollbar { width: 4px; }
+#left-panel::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.14); border-radius: 4px; }
+
+/* ── RIGHT PANEL ── */
+#right-panel {
+  position: absolute;
+  top: 72px; right: 16px; bottom: 56px;
+  width: 292px;
+  display: flex; flex-direction: column; gap: 8px;
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255,255,255,0.12) transparent;
+  padding-right: 2px;
+}
+#right-panel::-webkit-scrollbar { width: 4px; }
+#right-panel::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.14); border-radius: 4px; }
+
+/* ── PANEL CARD ── */
+.panel-card {
+  background: var(--bg-glass);
+  backdrop-filter: var(--blur);
+  border: 1px solid var(--border);
+  border-radius: var(--panel-radius);
+  overflow: hidden;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.4), 0 1px 0 rgba(255,255,255,0.05) inset;
+}
+.panel-header {
+  display: flex; align-items: center; gap: 8px;
+  padding: 12px 14px 10px;
+  border-bottom: 1px solid var(--border);
+  cursor: pointer;
+  user-select: none;
+}
+.panel-header-icon {
+  font-size: 14px;
+  width: 26px; height: 26px;
+  display: flex; align-items: center; justify-content: center;
+  border-radius: 8px;
+  background: rgba(255,255,255,0.06);
+  flex-shrink: 0;
+}
+.panel-title {
+  font-size: 12px; font-weight: 700; color: var(--text-primary);
+  letter-spacing: 0.5px; flex: 1;
+}
+.panel-chevron {
+  font-size: 10px; color: var(--text-dim);
+  transition: transform 0.2s;
+}
+.panel-card.collapsed .panel-chevron { transform: rotate(-90deg); }
+.panel-body { padding: 12px 14px; }
+.panel-card.collapsed .panel-body { display: none; }
+
+/* ── WEATHER METRICS ── */
+.weather-grid {
+  display: grid; grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+.w-metric {
+  background: rgba(255,255,255,0.04);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 10px;
+  text-align: center;
+}
+.w-metric .label { font-size: 10px; color: var(--text-dim); font-weight: 500; margin-bottom: 4px; }
+.w-metric .value { font-size: 20px; font-weight: 800; color: var(--text-primary); line-height: 1; }
+.w-metric .unit { font-size: 10px; color: var(--text-secondary); margin-top: 3px; }
+.w-metric.highlight { border-color: rgba(255,92,43,0.3); background: rgba(255,92,43,0.07); }
+.w-metric.highlight .value { color: var(--accent-fire); }
+
+/* ── FIRE ANIMATION CONTROL ── */
+.anim-bar {
+  display: flex; align-items: center; gap: 8px; margin-bottom: 10px;
+}
+.anim-btn {
+  background: rgba(255,255,255,0.06);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--text-primary);
+  font-size: 11px; font-family: inherit; font-weight: 600;
+  padding: 5px 10px; cursor: pointer;
+  transition: all 0.15s;
+  white-space: nowrap;
+}
+.anim-btn:hover { background: rgba(255,255,255,0.12); }
+.anim-btn.active { background: var(--accent-fire); border-color: transparent; }
+.frame-label {
+  font-size: 11px; color: var(--text-secondary);
+  font-family: 'JetBrains Mono', monospace; flex: 1; text-align: right;
+}
+
+input[type=range] {
+  width: 100%; height: 3px;
+  appearance: none; background: rgba(255,255,255,0.12);
+  border-radius: 3px; outline: none; cursor: pointer;
+}
+input[type=range]::-webkit-slider-thumb {
+  appearance: none; width: 14px; height: 14px;
+  border-radius: 50%; background: var(--accent-fire);
+  box-shadow: 0 0 8px var(--accent-fire-glow);
+  cursor: pointer;
+}
+
+/* ── FACILITY LIST ── */
+.facility-item {
+  display: flex; align-items: flex-start; gap: 10px;
+  padding: 9px 10px;
+  border-radius: 10px;
+  cursor: pointer;
+  transition: background 0.15s;
+  margin-bottom: 4px;
+}
+.facility-item:hover { background: rgba(255,255,255,0.06); }
+.facility-item.selected { background: rgba(61,154,255,0.12); border: 1px solid rgba(61,154,255,0.3); }
+.facility-badge {
+  width: 24px; height: 24px; border-radius: 6px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 10px; font-weight: 700; flex-shrink: 0;
+  margin-top: 1px;
+}
+.badge-safe { background: rgba(45,202,140,0.18); color: var(--accent-green); }
+.badge-danger { background: rgba(255,71,87,0.18); color: var(--accent-danger); }
+.facility-info { flex: 1; min-width: 0; }
+.facility-name { font-size: 12px; font-weight: 700; color: var(--text-primary); }
+.facility-meta { font-size: 10px; color: var(--text-secondary); margin-top: 2px; }
+.facility-dist {
+  font-size: 11px; font-weight: 700; color: var(--text-secondary);
+  font-family: 'JetBrains Mono', monospace; flex-shrink: 0; padding-top: 2px;
+}
+
+/* ── RISK SCALE ── */
+.risk-scale {
+  display: flex; gap: 4px;
+}
+.risk-block {
+  flex: 1; border-radius: 8px; padding: 6px 4px; text-align: center;
+  font-size: 10px; font-weight: 700; cursor: default;
+  transition: transform 0.15s;
+  opacity: 0.45;
+}
+.risk-block.active { opacity: 1; transform: scale(1.05); box-shadow: 0 0 12px rgba(0,0,0,0.4); }
+
+/* ── BOTTOM STATUS BAR ── */
+#statusbar {
+  position: absolute;
+  bottom: 16px; left: 50%; transform: translateX(-50%);
+  background: var(--bg-glass);
+  backdrop-filter: var(--blur);
+  border: 1px solid var(--border);
+  border-radius: 50px;
+  padding: 7px 20px;
+  display: flex; align-items: center; gap: 16px;
+  font-size: 11px; color: var(--text-secondary);
+  box-shadow: 0 4px 16px rgba(0,0,0,0.4);
+  white-space: nowrap;
+}
+#statusbar .coord {
+  font-family: 'JetBrains Mono', monospace; font-size: 11px;
+  color: var(--text-primary); font-weight: 500;
+}
+#statusbar .sep { width: 1px; height: 14px; background: var(--border); }
+
+/* ── FIRE POPUP ── */
+#fire-popup {
+  position: absolute;
+  bottom: 60px; left: 50%; transform: translateX(-50%);
+  background: var(--bg-glass);
+  backdrop-filter: var(--blur);
+  border: 1px solid rgba(255,92,43,0.35);
+  border-radius: 14px;
+  padding: 12px 18px;
+  min-width: 340px;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.5), 0 0 0 1px rgba(255,92,43,0.1);
+  display: none;
+  animation: fadeInUp 0.25s ease;
+}
+@keyframes fadeInUp {
+  from { opacity:0; transform: translateX(-50%) translateY(10px); }
+  to   { opacity:1; transform: translateX(-50%) translateY(0); }
+}
+#fire-popup .fp-header {
+  display: flex; align-items: center; gap: 8px; margin-bottom: 8px;
+}
+#fire-popup .fp-icon { font-size: 18px; }
+#fire-popup .fp-title { font-size: 13px; font-weight: 700; color: var(--accent-fire); }
+#fire-popup .fp-close {
+  margin-left: auto; cursor: pointer;
+  color: var(--text-dim); font-size: 14px;
+  padding: 2px 6px; border-radius: 4px; transition: color 0.15s;
+}
+#fire-popup .fp-close:hover { color: var(--text-primary); }
+#fire-popup .fp-grid {
+  display: grid; grid-template-columns: 1fr 1fr 1fr;
+  gap: 6px;
+}
+#fire-popup .fp-cell {
+  background: rgba(255,255,255,0.04); border-radius: 8px;
+  padding: 6px 8px; text-align: center;
+}
+#fire-popup .fp-cell .l { font-size: 9px; color: var(--text-dim); }
+#fire-popup .fp-cell .v { font-size: 13px; font-weight: 700; color: var(--text-primary); margin-top: 2px; }
+
+/* ── FACILITY POPUP ── */
+#facility-popup {
+  position: absolute;
+  top: 50%; left: 50%; transform: translate(-50%,-50%);
+  background: var(--bg-glass);
+  backdrop-filter: var(--blur);
+  border: 1px solid var(--border-bright);
+  border-radius: 18px;
+  padding: 20px;
+  width: 320px;
+  box-shadow: 0 20px 60px rgba(0,0,0,0.7);
+  display: none;
+  z-index: 200;
+  animation: popIn 0.2s cubic-bezier(0.34,1.56,0.64,1);
+}
+@keyframes popIn {
+  from { opacity:0; transform: translate(-50%,-50%) scale(0.9); }
+  to   { opacity:1; transform: translate(-50%,-50%) scale(1); }
+}
+#facility-popup .fac-header { display:flex; align-items:flex-start; margin-bottom:14px; }
+#facility-popup .fac-title { font-size: 16px; font-weight: 800; color: var(--text-primary); flex:1; }
+#facility-popup .fac-close {
+  cursor:pointer; color: var(--text-dim); padding: 2px 6px;
+  border-radius: 6px; font-size: 14px;
+  transition: all 0.15s;
+}
+#facility-popup .fac-close:hover { background: rgba(255,255,255,0.08); color: var(--text-primary); }
+#facility-popup .fac-status {
+  display: inline-flex; align-items: center; gap: 5px;
+  padding: 4px 10px; border-radius: 20px;
+  font-size: 11px; font-weight: 700;
+  margin-bottom: 12px;
+}
+.fac-safe { background: rgba(45,202,140,0.15); color: var(--accent-green); border: 1px solid rgba(45,202,140,0.3); }
+.fac-danger { background: rgba(255,71,87,0.15); color: var(--accent-danger); border: 1px solid rgba(255,71,87,0.3); }
+#facility-popup .fac-rows { display: flex; flex-direction: column; gap: 6px; }
+#facility-popup .fac-row {
+  display: flex; justify-content: space-between; align-items: center;
+  font-size: 12px; color: var(--text-secondary);
+  padding: 5px 0;
+  border-bottom: 1px solid var(--border);
+}
+#facility-popup .fac-row:last-child { border-bottom: none; }
+#facility-popup .fac-row span { font-weight: 600; color: var(--text-primary); }
+
+/* ── LAYER TOGGLE ── */
+.layer-toggle-row {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 6px 0;
+  font-size: 12px; color: var(--text-secondary);
+}
+.toggle-switch {
+  position: relative; width: 32px; height: 18px;
+  flex-shrink: 0;
+}
+.toggle-switch input { opacity: 0; width: 0; height: 0; }
+.toggle-slider {
+  position: absolute; inset: 0;
+  background: rgba(255,255,255,0.12);
+  border-radius: 18px; cursor: pointer;
+  transition: 0.2s;
+}
+.toggle-slider::before {
+  content: ''; position: absolute;
+  width: 12px; height: 12px; border-radius: 50%;
+  left: 3px; top: 3px;
+  background: rgba(255,255,255,0.5);
+  transition: 0.2s;
+}
+.toggle-switch input:checked + .toggle-slider { background: var(--accent-blue); }
+.toggle-switch input:checked + .toggle-slider::before {
+  transform: translateX(14px);
+  background: #fff;
+}
+
+/* ── INPUT FIELD ── */
+.field-row { margin-bottom: 8px; }
+.field-label { font-size: 10px; color: var(--text-dim); margin-bottom: 4px; font-weight: 600; letter-spacing: 0.5px; text-transform: uppercase; }
+.field-input {
+  width: 100%; background: rgba(255,255,255,0.05);
+  border: 1px solid var(--border); border-radius: 8px;
+  color: var(--text-primary); font-family: 'JetBrains Mono', monospace;
+  font-size: 13px; padding: 7px 10px; outline: none;
+  transition: border-color 0.15s;
+}
+.field-input:focus { border-color: var(--accent-blue); background: rgba(61,154,255,0.06); }
+.field-row-2col { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+
+/* ── PROGRESS BAR ── */
+.spread-progress {
+  height: 3px; background: rgba(255,255,255,0.08);
+  border-radius: 3px; overflow: hidden; margin-top: 8px;
+}
+.spread-fill {
+  height: 100%; background: linear-gradient(90deg, var(--accent-fire), #ff9f43);
+  border-radius: 3px;
+  transition: width 0.4s ease;
+  box-shadow: 0 0 8px var(--accent-fire);
+}
+
+/* ── SCAN BUTTON ── */
+.scan-btn {
+  width: 100%; padding: 9px; border-radius: 10px;
+  background: rgba(61,154,255,0.12); border: 1px solid rgba(61,154,255,0.25);
+  color: var(--accent-blue); font-family: inherit; font-size: 12px; font-weight: 700;
+  cursor: pointer; transition: all 0.2s;
+  display: flex; align-items: center; justify-content: center; gap: 6px;
+}
+.scan-btn:hover { background: rgba(61,154,255,0.22); }
+.scan-btn.fire-btn {
+  background: rgba(255,92,43,0.12); border-color: rgba(255,92,43,0.25);
+  color: var(--accent-fire);
+}
+.scan-btn.fire-btn:hover { background: rgba(255,92,43,0.22); }
+
+/* ── LEGEND ── */
+.legend { display: flex; align-items: center; gap: 6px; }
+.legend-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+
+/* ── DIVIDER ── */
+.divider { height: 1px; background: var(--border); margin: 8px 0; }
+
+/* ── LEAFLET CUSTOM POPUP ── */
+.leaflet-popup-content-wrapper {
+  background: var(--bg-glass) !important;
+  backdrop-filter: var(--blur);
+  border: 1px solid var(--border-bright) !important;
+  border-radius: 12px !important;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.5) !important;
+  color: var(--text-primary) !important;
+}
+.leaflet-popup-tip { background: rgba(10,14,22,0.85) !important; }
+.leaflet-popup-close-button { color: var(--text-secondary) !important; }
+
+/* ── ALERT BANNER ── */
+#alert-banner {
+  position: absolute; top: 72px; left: 50%; transform: translateX(-50%);
+  background: rgba(255,71,87,0.15);
+  backdrop-filter: var(--blur);
+  border: 1px solid rgba(255,71,87,0.4);
+  border-radius: 50px;
+  padding: 7px 20px;
+  display: none; align-items: center; gap: 8px;
+  font-size: 12px; color: var(--accent-danger); font-weight: 600;
+  box-shadow: 0 4px 20px rgba(255,71,87,0.3);
+  animation: fadeInDown 0.3s ease;
+  z-index: 110;
+}
+@keyframes fadeInDown {
+  from { opacity:0; transform: translateX(-50%) translateY(-10px); }
+  to   { opacity:1; transform: translateX(-50%) translateY(0); }
+}
+
+/* ── BRIEFING BOTTOM PANEL ── */
+#brief-panel {
+  position: absolute;
+  bottom: 0; left: 0; right: 0;
+  background: var(--bg-glass);
+  backdrop-filter: var(--blur);
+  border-top: 1px solid var(--border-bright);
+  box-shadow: 0 -8px 40px rgba(0,0,0,0.5);
+  transform: translateY(calc(100% - 48px));
+  transition: transform 0.35s cubic-bezier(0.4,0,0.2,1);
+  z-index: 120;
+  max-height: 60vh;
+}
+#brief-panel.open { transform: translateY(0); }
+#brief-handle {
+  height: 48px;
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 0 20px; cursor: pointer;
+  border-bottom: 1px solid transparent;
+  transition: border-color 0.2s;
+  user-select: none;
+}
+#brief-panel.open #brief-handle { border-bottom-color: var(--border); }
+#brief-handle-left { display: flex; align-items: center; gap: 10px; }
+#brief-handle-icon { font-size: 15px; }
+#brief-handle-title {
+  font-size: 13px; font-weight: 700; color: var(--text-primary);
+}
+#brief-handle-badge {
+  background: var(--accent-fire); color: #fff;
+  font-size: 10px; font-weight: 700;
+  padding: 2px 8px; border-radius: 20px;
+  display: none;
+}
+#brief-handle-badge.visible { display: inline; }
+#brief-handle-arrow {
+  font-size: 12px; color: var(--text-dim);
+  transition: transform 0.3s;
+}
+#brief-panel.open #brief-handle-arrow { transform: rotate(180deg); }
+#brief-handle-summary {
+  font-size: 11px; color: var(--text-secondary);
+  max-width: 500px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+#brief-body {
+  padding: 16px 20px 20px;
+  overflow-y: auto;
+  max-height: calc(60vh - 48px);
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255,255,255,0.12) transparent;
+}
+#brief-body::-webkit-scrollbar { width: 4px; }
+#brief-body::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.14); border-radius: 4px; }
+.brief-section { margin-bottom: 14px; }
+.brief-section-title {
+  font-size: 10px; font-weight: 700; color: var(--text-dim);
+  letter-spacing: 1px; text-transform: uppercase; margin-bottom: 6px;
+}
+.brief-content {
+  font-size: 13px; color: var(--text-secondary); line-height: 1.8;
+  background: rgba(255,255,255,0.03);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 12px 14px;
+  white-space: pre-wrap;
+}
+#tweaks-panel {
+  position: absolute; bottom: 60px; right: 16px;
+  width: 260px;
+  background: var(--bg-glass);
+  backdrop-filter: var(--blur);
+  border: 1px solid var(--border-bright);
+  border-radius: var(--panel-radius);
+  box-shadow: 0 12px 40px rgba(0,0,0,0.6);
+  display: none;
+  z-index: 300;
+}
+#tweaks-panel .tw-header {
+  display: flex; align-items: center; padding: 12px 14px;
+  border-bottom: 1px solid var(--border);
+}
+#tweaks-panel .tw-title { font-size: 12px; font-weight: 700; color: var(--text-primary); flex:1; }
+#tweaks-panel .tw-close { cursor:pointer; color: var(--text-dim); font-size:14px; }
+#tweaks-panel .tw-body { padding: 12px 14px; display: flex; flex-direction: column; gap: 10px; }
+.tw-row { display: flex; align-items: center; justify-content: space-between; font-size: 12px; color: var(--text-secondary); }
+.tw-select {
+  background: rgba(255,255,255,0.06); border: 1px solid var(--border);
+  border-radius: 6px; color: var(--text-primary); font-family: inherit;
+  font-size: 11px; padding: 3px 6px; outline: none; cursor: pointer;
+}
+.tw-select option { background: #0d1117; }
+</style>
+</head>
+<body>
+
+<!-- LOGIN GATE -->
+<div id="login-gate" style="
+  position:fixed;inset:0;z-index:9999;
+  background:rgba(8,12,20,0.97);
+  backdrop-filter:blur(20px);
+  display:flex;align-items:center;justify-content:center;
+">
+  <div style="
+    background:rgba(20,28,44,0.9);
+    border:1px solid rgba(255,255,255,0.1);
+    border-radius:20px;
+    padding:40px 36px;
+    width:340px;
+    box-shadow:0 24px 80px rgba(0,0,0,0.7);
+    text-align:center;
+  ">
+    <div style="font-size:28px;font-weight:900;color:#ff5c2b;letter-spacing:3px;margin-bottom:6px;">G-DAPS</div>
+    <div style="font-size:12px;color:rgba(200,210,230,0.5);margin-bottom:28px;">산불 확산 예측 시스템</div>
+    <input id="pw-input" type="password" placeholder="접속 비밀번호를 입력하세요"
+      style="
+        width:100%;padding:12px 14px;
+        background:rgba(255,255,255,0.06);
+        border:1px solid rgba(255,255,255,0.12);
+        border-radius:10px;
+        color:#f0f4ff;font-family:inherit;font-size:14px;
+        outline:none;text-align:center;
+        margin-bottom:10px;
+      "
+      onkeydown="if(event.key==='Enter')doLogin()"
+    />
+    <div id="pw-error" style="font-size:11px;color:#ff4757;min-height:16px;margin-bottom:8px;"></div>
+    <button onclick="doLogin()" style="
+      width:100%;padding:11px;
+      background:#ff5c2b;border:none;border-radius:10px;
+      color:#fff;font-family:inherit;font-size:14px;font-weight:700;
+      cursor:pointer;transition:background 0.2s;
+      box-shadow:0 0 20px rgba(255,92,43,0.35);
+    " onmouseover="this.style.background='#ff7145'" onmouseout="this.style.background='#ff5c2b'">
+      로그인
+    </button>
+  </div>
+</div>
+
+<div id="map"></div>
+
+<div id="overlay">
+
+  <!-- TOP BAR -->
+  <div id="topbar">
+    <span class="logo">G-DAPS</span>
+    <div class="sep"></div>
+    <div class="status-dot"></div>
+    <span class="status-text">실시간 모니터링</span>
+    <div class="sep"></div>
+    <button class="topbar-btn" onclick="runAnalysis()">⚡ 분석 실행</button>
+    <button class="topbar-btn" onclick="fetchTodayFire()">🔥 금일 산불 조회</button>
+    <button class="topbar-btn primary" id="anim-topbtn" onclick="toggleAnimation()">▶ 재생</button>
+    <div class="sep"></div>
+    <button class="topbar-btn" onclick="toggleTweaks()">⚙ Tweaks</button>
+  </div>
+
+  <!-- ALERT BANNER -->
+  <div id="alert-banner">
+    <span>🚨</span>
+    <span id="alert-text">경기도 산불 1건 감지 — 자동 분석 중...</span>
+    <span style="cursor:pointer;margin-left:4px;opacity:0.6" onclick="this.parentElement.style.display='none'">✕</span>
+  </div>
+
+  <!-- LEFT PANEL -->
+  <div id="left-panel">
+
+    <!-- 발화점 설정 -->
+    <div class="panel-card collapsed" id="card-ignition">
+      <div class="panel-header" onclick="toggleCard('ignition')">
+        <div class="panel-header-icon">📍</div>
+        <span class="panel-title">발화점 / 기상 설정</span>
+        <span class="panel-chevron">▾</span>
+      </div>
+      <div class="panel-body">
+        <div class="field-row-2col">
+          <div class="field-row">
+            <div class="field-label">위도 (lat)</div>
+            <input class="field-input" id="inp-lat" value="37.747575" type="number"/>
+          </div>
+          <div class="field-row">
+            <div class="field-label">경도 (lon)</div>
+            <input class="field-input" id="inp-lon" value="127.071862" type="number"/>
+          </div>
+        </div>
+        <div class="divider"></div>
+        <div class="field-row">
+          <div class="field-label">시연용 지명/시설명</div>
+          <input class="field-input" id="inp-demo-place" value="" type="text" placeholder="예: 포천시청, 경기도청 북부청사"/>
+        </div>
+        <button class="scan-btn" onclick="selectDemoPlace()" style="margin-top:4px;">
+          <span>📍</span> 지명으로 발화점 설정
+        </button>
+        <button class="scan-btn" id="demo-click-btn" onclick="toggleDemoClickMode()" style="margin-top:4px;background:rgba(61,154,255,0.22);border-color:rgba(61,154,255,0.35);">
+          <span>🖱</span> 지도 3회 클릭 설정 OFF
+        </button>
+        <div id="demo-click-status" style="font-size:10px;color:var(--text-dim);margin-top:5px;text-align:center;line-height:1.5;">시연 지점 선택 대기</div>
+        <div class="divider"></div>
+        <div class="field-row-2col">
+          <div class="field-row">
+            <div class="field-label">풍향 (°)</div>
+            <input class="field-input" id="inp-wd" value="90" type="number"/>
+          </div>
+          <div class="field-row">
+            <div class="field-label">풍속 (m/s)</div>
+            <input class="field-input" id="inp-ws" value="5.0" type="number"/>
+          </div>
+        </div>
+        <div class="field-row-2col">
+          <div class="field-row">
+            <div class="field-label">기온 (℃)</div>
+            <input class="field-input" id="inp-temp" value="0.0" type="number"/>
+          </div>
+          <div class="field-row">
+            <div class="field-label">습도 (%)</div>
+            <input class="field-input" id="inp-rh" value="0.0" type="number"/>
+          </div>
+        </div>
+        <div class="divider"></div>
+        <div class="field-row">
+          <div class="field-label">API 서버 호스트</div>
+          <input class="field-input" id="inp-host" value="자동(/api)" type="text"/>
+        </div>
+        <div class="field-row-2col">
+          <div class="field-row">
+            <div class="field-label">포트</div>
+            <input class="field-input" id="inp-port" value="5000" type="text"/>
+          </div>
+          <div class="field-row">
+            <div class="field-label">Token (옵션)</div>
+            <input class="field-input" id="inp-token" value="" type="text"/>
+          </div>
+        </div>
+        <button class="scan-btn" onclick="applyManualInputs()" style="margin-top:4px;">
+          <span>✓</span> 발화점 적용
+        </button>
+      </div>
+    </div>
+
+    <!-- 실시간 산불 API -->
+    <div class="panel-card" id="card-api">
+      <div class="panel-header" onclick="toggleCard('api')">
+        <div class="panel-header-icon">📡</div>
+        <span class="panel-title">실시간 산불 API</span>
+        <span class="panel-chevron">▾</span>
+      </div>
+      <div class="panel-body">
+        <div style="display:flex;gap:6px;">
+          <button class="scan-btn fire-btn" style="flex:1;" onclick="fetchTodayFire()">🔥 금일 조회</button>
+          <button class="scan-btn" style="flex:1;" onclick="autoScan()">⚡ 자동분석</button>
+        </div>
+        <div id="api-status" style="font-size:10px;color:var(--text-dim);margin-top:6px;text-align:center;line-height:1.5;">조회 대기 중</div>
+        <div id="fire-list" style="margin-top:6px;display:flex;flex-direction:column;gap:4px;max-height:200px;overflow-y:auto;scrollbar-width:thin;scrollbar-color:rgba(255,255,255,0.12) transparent;"></div>
+      </div>
+    </div>
+
+    <!-- 지도 레이어 -->
+    <div class="panel-card" id="card-layers">
+      <div class="panel-header" onclick="toggleCard('layers')">
+        <div class="panel-header-icon">🗺</div>
+        <span class="panel-title">지도 레이어</span>
+        <span class="panel-chevron">▾</span>
+      </div>
+      <div class="panel-body">
+        <div class="layer-toggle-row">
+          <span>🔥 확산 예측</span>
+          <label class="toggle-switch"><input type="checkbox" id="tog-fire" checked onchange="toggleFireLayer()"><span class="toggle-slider"></span></label>
+        </div>
+        <div class="layer-toggle-row">
+          <span>📢 경보시설</span>
+          <label class="toggle-switch"><input type="checkbox" id="tog-facility" checked onchange="toggleFacilityLayer()"><span class="toggle-slider"></span></label>
+        </div>
+        <div class="layer-toggle-row" style="flex-direction:column;align-items:flex-start;gap:4px;">
+          <div style="display:flex;align-items:center;justify-content:space-between;width:100%;">
+            <span style="font-size:11px;color:var(--text-dim);font-weight:600;letter-spacing:.5px;text-transform:uppercase;">표시 반경 (km)</span>
+            <span style="font-size:11px;color:var(--text-primary);font-weight:700;" id="radius-label">15km</span>
+          </div>
+          <input type="range" min="5" max="50" value="30" step="5" style="width:100%;" oninput="onRadiusSlider(this.value)"/>
+          <div style="font-size:10px;color:var(--text-dim);" id="facility-count">반경 15km 내 계산 중...</div>
+        </div>
+        <div class="divider"></div>
+        <div class="layer-toggle-row">
+          <span>⭕ 가청반경 원</span>
+          <label class="toggle-switch"><input type="checkbox" id="tog-circle" checked onchange="toggleCircleLayer()"><span class="toggle-slider"></span></label>
+        </div>
+        <div class="divider"></div>
+        <div style="font-size:10px;color:var(--text-dim);margin-bottom:6px;font-weight:600;letter-spacing:0.5px;text-transform:uppercase;">지도 스타일</div>
+        <select class="tw-select" style="width:100%;padding:6px 8px;font-size:12px;" id="tile-select" onchange="changeTile()">
+          <option value="dark">Dark (CartoDB Dark)</option>
+          <option value="positron">Light (CartoDB Positron)</option>
+          <option value="osm" selected>표준 (OpenStreetMap)</option>
+          <option value="topo">지형도 (OpenTopoMap)</option>
+        </select>
+      </div>
+    </div>
+
+  </div><!-- /left-panel -->
+
+  <!-- RIGHT PANEL -->
+  <div id="right-panel">
+
+    <!-- 현재 기상 -->
+    <div class="panel-card" id="card-weather">
+      <div class="panel-header" onclick="toggleCard('weather')">
+        <div class="panel-header-icon">🌬</div>
+        <span class="panel-title">현재 기상</span>
+        <span class="panel-chevron">▾</span>
+      </div>
+      <div class="panel-body" style="padding:10px 12px;">
+        <div style="display:flex;gap:6px;align-items:stretch;">
+          <div class="w-metric highlight" style="flex:1.2;padding:8px 6px;">
+            <div class="label">풍향</div>
+            <div class="value" style="font-size:16px;" id="w-dir">동풍</div>
+            <div class="unit" id="w-deg">90°</div>
+          </div>
+          <div class="w-metric highlight" style="flex:1;padding:8px 6px;">
+            <div class="label">풍속</div>
+            <div class="value" style="font-size:16px;" id="w-ws">5.0</div>
+            <div class="unit">m/s</div>
+          </div>
+          <div class="w-metric" style="flex:1;padding:8px 6px;">
+            <div class="label">기온</div>
+            <div class="value" style="font-size:16px;" id="w-temp">0.0</div>
+            <div class="unit">℃</div>
+          </div>
+          <div class="w-metric" style="flex:1;padding:8px 6px;">
+            <div class="label">습도</div>
+            <div class="value" style="font-size:16px;" id="w-rh">0</div>
+            <div class="unit">%</div>
+          </div>
+        </div>
+        <div style="font-size:10px;color:var(--text-dim);margin-top:6px;text-align:right;" id="weather-src">분석 실행 시 자동 갱신</div>
+      </div>
+    </div>
+
+    <!-- 확산 재생 제어 -->
+    <div class="panel-card" id="card-anim">
+      <div class="panel-header" onclick="toggleCard('anim')">
+        <div class="panel-header-icon">🎬</div>
+        <span class="panel-title">확산 재생</span>
+        <span class="panel-chevron">▾</span>
+      </div>
+      <div class="panel-body">
+        <div class="anim-bar">
+          <button class="anim-btn" onclick="resetFrame()">⏮</button>
+          <button class="anim-btn" id="play-btn" onclick="toggleAnimation()">▶ 재생</button>
+          <span class="frame-label" id="frame-label">0 / 6</span>
+        </div>
+        <input type="range" id="frame-slider" min="1" max="6" value="1" oninput="onFrameSlider(this.value)"/>
+        <div class="spread-progress"><div class="spread-fill" id="spread-fill" style="width:0%"></div></div>
+        <div style="margin-top:8px;">
+          <div class="field-label" style="margin-bottom:4px;">재생 속도</div>
+          <input type="range" id="speed-slider" min="300" max="2000" value="900" step="100" oninput="onSpeedSlider(this.value)"/>
+          <div style="font-size:10px;color:var(--text-dim);text-align:right;margin-top:3px;" id="speed-label">900ms</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 경보시설 -->
+    <div class="panel-card" id="card-facilities">
+      <div class="panel-header" onclick="toggleCard('facilities')">
+        <div class="panel-header-icon">📢</div>
+        <span class="panel-title">발화점 기준 인근 경보시설</span>
+        <span class="panel-chevron">▾</span>
+      </div>
+      <div class="panel-body" id="facility-list">
+        <div style="font-size:11px;color:var(--text-dim);text-align:center;padding:8px 0;">
+          분석 실행 후 표시됩니다
+        </div>
+      </div>
+    </div>
+
+    <!-- 산불위험 등급 -->
+    <div class="panel-card" id="card-risk">
+      <div class="panel-header" onclick="toggleCard('risk')">
+        <div class="panel-header-icon">⚠️</div>
+        <span class="panel-title">산불위험예보 (경기도)</span>
+        <span class="panel-chevron">▾</span>
+      </div>
+      <div class="panel-body">
+        <div class="risk-scale" id="risk-scale">
+          <div class="risk-block" data-grade="1" style="background:#F8A3A6;color:#6b1f23;">1등급<br/><small>매우높음</small></div>
+          <div class="risk-block" data-grade="2" style="background:#F7C66A;color:#6b4c0a;">2등급<br/><small>높음</small></div>
+          <div class="risk-block" data-grade="3" style="background:#F0F2B2;color:#5a5f10;">3등급<br/><small>다소높음</small></div>
+          <div class="risk-block" data-grade="4" style="background:#BEEAD0;color:#1a5e37;">4등급<br/><small>보통</small></div>
+          <div class="risk-block" data-grade="5" style="background:#C8EEE8;color:#1a4d47;">5등급<br/><small>낮음</small></div>
+          <div class="risk-block" data-grade="6" style="background:#BFD8EA;color:#1a3d5e;">6등급<br/><small>매우낮음</small></div>
+        </div>
+        <div style="font-size:10px;color:var(--text-dim);margin-top:8px;text-align:center;" id="risk-info">분석 실행 후 갱신</div>
+      </div>
+    </div>
+
+
+
+    <!-- PDF 내보내기 -->
+    <div class="panel-card" id="card-pdf">
+      <div class="panel-body" style="padding:10px 12px;">
+        <button class="scan-btn" onclick="exportPDF()" style="background:rgba(255,92,43,0.12);border-color:rgba(255,92,43,0.3);color:var(--accent-fire);">
+          <span>📄</span> 분석결과 PDF 내보내기
+        </button>
+        <div id="pdf-status" style="font-size:10px;color:var(--text-dim);text-align:center;margin-top:6px;"></div>
+      </div>
+    </div>
+
+  </div><!-- /right-panel -->
+
+  <!-- STATUS BAR -->
+  <div id="statusbar">
+    <span>📍</span>
+    <span class="coord" id="coord-display">37.7476°N, 127.0719°E</span>
+    <div class="sep"></div>
+    <span id="frame-status">프레임 0 / 6</span>
+    <div class="sep"></div>
+    <span id="time-status">—</span>
+    <div class="sep"></div>
+    <span id="clock-display"></span>
+  </div>
+
+  <!-- FIRE POPUP (bottom center) -->
+  <div id="fire-popup">
+    <div class="fp-header">
+      <span class="fp-icon">🔥</span>
+      <span class="fp-title" id="fp-title">산불 확산 예측</span>
+      <span class="fp-close" onclick="document.getElementById('fire-popup').style.display='none'">✕</span>
+    </div>
+    <div class="fp-grid">
+      <div class="fp-cell"><div class="l">현재 프레임</div><div class="v" id="fp-frame">1 / 6</div></div>
+      <div class="fp-cell"><div class="l">경과 시간</div><div class="v" id="fp-time">30분</div></div>
+      <div class="fp-cell"><div class="l">확산 거리</div><div class="v" id="fp-dist">~1.2km</div></div>
+    </div>
+  </div>
+
+  <!-- FACILITY POPUP (center) -->
+  <div id="facility-popup">
+    <div class="fac-header">
+      <div class="fac-title" id="fac-popup-name">시설명</div>
+      <span class="fac-close" onclick="closeFacilityPopup()">✕</span>
+    </div>
+    <div class="fac-status fac-safe" id="fac-popup-status">✅ 피해범위 밖</div>
+    <div class="fac-rows">
+      <div class="fac-row">시군 <span id="fac-popup-city">—</span></div>
+      <div class="fac-row">직선거리 <span id="fac-popup-dist">—</span></div>
+      <div class="fac-row">가청반경 <span id="fac-popup-radius">—</span></div>
+      <div class="fac-row">피해범위까지 <span id="fac-popup-gap">—</span></div>
+    </div>
+  </div>
+
+  <!-- BRIEFING BOTTOM PANEL -->
+  <div id="brief-panel">
+    <div id="brief-handle" onclick="toggleBriefPanel()">
+      <div id="brief-handle-left">
+        <span id="brief-handle-icon">📋</span>
+        <span id="brief-handle-title">브리핑</span>
+        <span id="brief-handle-badge">NEW</span>
+      </div>
+      <span id="brief-handle-summary" style="flex:1;margin:0 16px;">분석 실행 후 브리핑이 표시됩니다</span>
+      <span id="brief-handle-arrow">▲</span>
+    </div>
+    <div id="brief-body">
+      <div id="brief-sections">
+        <div style="font-size:12px;color:var(--text-dim);text-align:center;padding:20px 0;">
+          ⚡ 상단의 <b style="color:var(--text-primary)">분석 실행</b> 버튼을 눌러 브리핑을 생성하세요.
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- TWEAKS PANEL -->
+  <div id="tweaks-panel">
+    <div class="tw-header">
+      <span class="tw-title">⚙ Tweaks</span>
+      <span class="tw-close" onclick="toggleTweaks()">✕</span>
+    </div>
+    <div class="tw-body">
+      <div class="tw-row">지도 스타일
+        <select class="tw-select" onchange="changeTileFromTweaks(this.value)">
+          <option value="dark">Dark</option>
+          <option value="positron">Light</option>
+          <option value="osm">Standard</option>
+        </select>
+      </div>
+      <div class="tw-row">패널 불투명도
+        <input type="range" style="width:100px" min="60" max="98" value="82" oninput="setPanelOpacity(this.value)"/>
+      </div>
+      <div class="tw-row">확산 색상
+        <select class="tw-select" onchange="setFireColor(this.value)">
+          <option value="orange">오렌지</option>
+          <option value="red">레드</option>
+          <option value="yellow">옐로우</option>
+        </select>
+      </div>
+      <div class="tw-row">경보시설 표시 수
+        <input type="number" class="field-input" style="width:60px;text-align:center;" value="30" min="5" max="120" id="tw-max-sites" oninput="maxSitesChanged(this.value)"/>
+      </div>
+    </div>
+  </div>
+
+</div><!-- /overlay -->
+
+<!-- 경보시설 데이터 (인라인) -->
+<script>
+const SITES_DATA = [{"id":"S0001","region":"남부","city":"수원시","name":"수원시청","lat":37.263406,"lon":127.028584,"addr":"","radius_m":1000.9,"grade":"중형"},{"id":"S0002","region":"남부","city":"수원시","name":"파장동행정복지센터","lat":37.3103862,"lon":126.9974438,"addr":"","radius_m":1000.8,"grade":"중형"},{"id":"S0003","region":"남부","city":"수원시","name":"율천동행정복지센터","lat":37.2976927,"lon":126.9714919,"addr":"","radius_m":999,"grade":"중형"},{"id":"S0004","region":"남부","city":"수원시","name":"정자1동행정복지센터","lat":37.3021669,"lon":126.9913968,"addr":"","radius_m":999,"grade":"중형"},{"id":"S0005","region":"남부","city":"수원시","name":"조원1동행정복지센터","lat":37.3017563,"lon":127.0164898,"addr":"","radius_m":1000.1,"grade":"중형"},{"id":"S0006","region":"남부","city":"수원시","name":"연무동행정복지센터","lat":37.2905137,"lon":127.0216119,"addr":"","radius_m":1000.7,"grade":"중형"},{"id":"S0007","region":"남부","city":"수원시","name":"권선구청","lat":37.2575787,"lon":126.9717607,"addr":"","radius_m":998.7,"grade":"중형"},{"id":"S0008","region":"남부","city":"수원시","name":"세류1동행정복지센터","lat":37.2621295,"lon":127.0079748,"addr":"","radius_m":998.9,"grade":"중형"},{"id":"S0009","region":"남부","city":"수원시","name":"세류2동행정복지센터","lat":37.2532959,"lon":127.0130622,"addr":"","radius_m":1201,"grade":"중형"},{"id":"S0010","region":"남부","city":"수원시","name":"평동행정복지센터","lat":37.2580172,"lon":126.9941433,"addr":"","radius_m":1201.8,"grade":"통합"},{"id":"S0011","region":"남부","city":"수원시","name":"구운동행정복지센터","lat":37.2772303,"lon":126.9715331,"addr":"","radius_m":999.5,"grade":"대형"},{"id":"S0012","region":"남부","city":"수원시","name":"호매실동행정복지센터","lat":37.2661824,"lon":126.9570346,"addr":"","radius_m":1000.7,"grade":"중형"},{"id":"S0013","region":"남부","city":"수원시","name":"금곡동행정복지센터","lat":37.2727783,"lon":126.9521916,"addr":"","radius_m":1000.4,"grade":"중형"},{"id":"S0014","region":"남부","city":"수원시","name":"권선2동행정복지센터","lat":37.2577129,"lon":127.0245833,"addr":"","radius_m":1000.7,"grade":"중형"},{"id":"S0015","region":"남부","city":"수원시","name":"곡선동행정복지센터","lat":37.2432913,"lon":127.033365,"addr":"","radius_m":999.8,"grade":"중형"},{"id":"S0016","region":"남부","city":"수원시","name":"입북동행정복지센터","lat":37.2933327,"lon":126.9595345,"addr":"","radius_m":998.7,"grade":"중형"},{"id":"S0017","region":"남부","city":"수원시","name":"선경도서관","lat":37.2838213,"lon":127.0104925,"addr":"","radius_m":1000.8,"grade":"중형"},{"id":"S0018","region":"남부","city":"수원시","name":"매산동행정복지센터","lat":37.268655,"lon":127.0056696,"addr":"","radius_m":998.9,"grade":"중형"},{"id":"S0019","region":"남부","city":"수원시","name":"화서2동행정복지센터","lat":37.2851412,"lon":126.9863142,"addr":"","radius_m":1199.4,"grade":"통합"},{"id":"S0020","region":"남부","city":"수원시","name":"수원시민회관","lat":37.2734205,"lon":127.0112534,"addr":"","radius_m":1000,"grade":"중형"},{"id":"S0021","region":"남부","city":"수원시","name":"지동행정복지센터","lat":37.2820214,"lon":127.0284432,"addr":"","radius_m":999.7,"grade":"중형"},{"id":"S0022","region":"남부","city":"수원시","name":"우만1동행정복지센터","lat":37.2772623,"lon":127.0257445,"addr":"","radius_m":999.3,"grade":"중형"},{"id":"S0023","region":"남부","city":"수원시","name":"우만2동행정복지센터","lat":37.277964,"lon":127.0397449,"addr":"","radius_m":1001,"grade":"중형"},{"id":"S0024","region":"남부","city":"수원시","name":"매탄1동행정복지센터","lat":37.2704887,"lon":127.0404718,"addr":"","radius_m":1198.5,"grade":"중형"},{"id":"S0025","region":"남부","city":"수원시","name":"원천동행정복지센터","lat":37.2734268,"lon":127.0532955,"addr":"","radius_m":999.7,"grade":"중형"},{"id":"S0026","region":"남부","city":"수원시","name":"광교1동행정복지센터","lat":37.2902171,"lon":127.0475512,"addr":"","radius_m":998.6,"grade":"중형"},{"id":"S0027","region":"남부","city":"수원시","name":"광교2동행정복지센터","lat":37.2921759,"lon":127.0686384,"addr":"","radius_m":1000.3,"grade":"중형"},{"id":"S0028","region":"남부","city":"수원시","name":"영통1동행정복지센터","lat":37.2662313,"lon":127.0805982,"addr":"","radius_m":996.9,"grade":""},{"id":"S0029","region":"남부","city":"수원시","name":"영통2동행정복지센터","lat":37.2469452,"lon":127.0563082,"addr":"","radius_m":999.5,"grade":"중형"},{"id":"S0030","region":"남부","city":"수원시","name":"영통3동행정복지센터","lat":37.2597454,"lon":127.0617733,"addr":"","radius_m":999,"grade":"중형"},{"id":"S0031","region":"남부","city":"수원시","name":"망포2동행정복지센터","lat":37.2387393,"lon":127.0514686,"addr":"","radius_m":1000.1,"grade":"중형"},{"id":"S0032","region":"남부","city":"수원시","name":"수원남부소방서","lat":37.25461,"lon":127.0363663,"addr":"","radius_m":1001,"grade":"중형"},{"id":"S0033","region":"남부","city":"수원시","name":"고등동행정복지센터","lat":37.2733095,"lon":127.0010985,"addr":"","radius_m":1000,"grade":"중형"},{"id":"S0034","region":"남부","city":"용인시","name":"처인구청","lat":37.23444,"lon":127.201346,"addr":"","radius_m":1201.3,"grade":"대형"},{"id":"S0035","region":"남부","city":"용인시","name":"포곡읍행정복지센터","lat":37.2777405,"lon":127.2308142,"addr":"","radius_m":1201.4,"grade":"대형"},{"id":"S0036","region":"남부","city":"용인시","name":"둔전리 복지회관","lat":37.2726528,"lon":127.2187918,"addr":"","radius_m":401,"grade":"소형"},{"id":"S0037","region":"남부","city":"용인시","name":"왕산4리 마을회관","lat":37.3375738,"lon":127.2517213,"addr":"","radius_m":400.3,"grade":"소형"},{"id":"S0038","region":"남부","city":"용인시","name":"이동읍행정복지센터","lat":37.141091,"lon":127.196182,"addr":"","radius_m":1001.1,"grade":"중형"},{"id":"S0039","region":"남부","city":"용인시","name":"역복동행정복지센터","lat":37.2344522,"lon":127.1882138,"addr":"","radius_m":1000,"grade":""},{"id":"S0040","region":"남부","city":"용인시","name":"남사읍행정복지센터","lat":37.1154538,"lon":127.1505215,"addr":"","radius_m":999.8,"grade":"중형"},{"id":"S0041","region":"남부","city":"용인시","name":"죽림노인정","lat":37.1370388,"lon":127.3068585,"addr":"","radius_m":799,"grade":"소형"},{"id":"S0042","region":"남부","city":"용인시","name":"미평1리 마을회관","lat":37.1824633,"lon":127.3251344,"addr":"","radius_m":798.9,"grade":"소형"},{"id":"S0043","region":"남부","city":"용인시","name":"백암면행정복지센터","lat":37.1633812,"lon":127.3753404,"addr":"","radius_m":1001.1,"grade":"중형"},{"id":"S0044","region":"남부","city":"용인시","name":"양지면행정복지센터","lat":37.2354391,"lon":127.2798329,"addr":"","radius_m":1001,"grade":"중형"},{"id":"S0045","region":"남부","city":"용인시","name":"대대1리 마을회관","lat":37.2632529,"lon":127.2655831,"addr":"","radius_m":400.6,"grade":"소형"},{"id":"S0046","region":"남부","city":"용인시","name":"유림동행정복지센터","lat":37.2524017,"lon":127.2117021,"addr":"","radius_m":999.8,"grade":"중형"},{"id":"S0047","region":"남부","city":"용인시","name":"고림8통 마을회관","lat":37.2396367,"lon":127.2154424,"addr":"","radius_m":401.2,"grade":"소형"},{"id":"S0048","region":"남부","city":"용인시","name":"기흥구청","lat":37.2804055,"lon":127.1146587,"addr":"","radius_m":1199.1,"grade":"대형"},{"id":"S0049","region":"남부","city":"용인시","name":"영덕1동행정복지센터","lat":37.2776636,"lon":127.0743559,"addr":"","radius_m":1003.1,"grade":"중형"},{"id":"S0050","region":"남부","city":"용인시","name":"상갈동행정복지센터","lat":37.266546,"lon":127.1076598,"addr":"","radius_m":1001.5,"grade":"중형"},{"id":"S0051","region":"남부","city":"용인시","name":"지곡2통 마을회관","lat":37.2400909,"lon":127.134405,"addr":"","radius_m":800.3,"grade":"소형"},{"id":"S0052","region":"남부","city":"용인시","name":"기흥동행정복지센터","lat":37.2314456,"lon":127.1154617,"addr":"","radius_m":1000.6,"grade":"중형"},{"id":"S0053","region":"남부","city":"용인시","name":"구성도서관","lat":37.2963664,"lon":127.1184676,"addr":"","radius_m":1201.7,"grade":"대형"},{"id":"S0054","region":"남부","city":"용인시","name":"마북동행정복지센터","lat":37.3015845,"lon":127.1174169,"addr":"","radius_m":793.9,"grade":"DMB"},{"id":"S0055","region":"남부","city":"용인시","name":"동백2동행정복지센터","lat":37.2724494,"lon":127.1515925,"addr":"","radius_m":999.9,"grade":"중형"},{"id":"S0056","region":"남부","city":"용인시","name":"상하동행정복지센터","lat":37.2702315,"lon":127.1380538,"addr":"","radius_m":1011.4,"grade":"중형"},{"id":"S0057","region":"남부","city":"용인시","name":"죽전1동행정복지센터","lat":37.3309841,"lon":127.1139857,"addr":"","radius_m":1000.2,"grade":"중형"},{"id":"S0058","region":"남부","city":"용인시","name":"죽전2동행정복지센터","lat":37.3258912,"lon":127.1067054,"addr":"","radius_m":1003.1,"grade":"중형"},{"id":"S0059","region":"남부","city":"용인시","name":"수지구청","lat":37.3221501,"lon":127.097437,"addr":"","radius_m":1200,"grade":"대형"},{"id":"S0060","region":"남부","city":"용인시","name":"신봉2통 마을회관","lat":37.3328033,"lon":127.0548807,"addr":"","radius_m":803.1,"grade":"소형"},{"id":"S0061","region":"남부","city":"용인시","name":"동천동행정복지센터","lat":37.3418205,"lon":127.0992026,"addr":"","radius_m":400.8,"grade":"소형"},{"id":"S0062","region":"남부","city":"용인시","name":"상현1동행정복지센터","lat":37.3045963,"lon":127.0811367,"addr":"","radius_m":999.6,"grade":"중형"},{"id":"S0063","region":"남부","city":"용인시","name":"성복동행정복지센터","lat":37.316429,"lon":127.0689676,"addr":"","radius_m":1003.1,"grade":"중형"},{"id":"S0064","region":"남부","city":"용인시","name":"서농동행정복지센터","lat":37.2468258,"lon":127.0734139,"addr":"","radius_m":1000,"grade":"중형"},{"id":"S0065","region":"남부","city":"용인시","name":"남사스포츠센터","lat":37.1569881,"lon":127.17383,"addr":"","radius_m":1200,"grade":"대형"},{"id":"S0066","region":"남부","city":"용인시","name":"고림2통마을회관","lat":37.2510704,"lon":127.2312372,"addr":"","radius_m":1200,"grade":"대형"},{"id":"S0067","region":"남부","city":"성남시","name":"성남시청","lat":37.419464,"lon":127.1258931,"addr":"","radius_m":998.6,"grade":"중형"},{"id":"S0068","region":"남부","city":"성남시","name":"태평3동행정복지센터","lat":37.4451889,"lon":127.1331417,"addr":"","radius_m":1201.2,"grade":"대형"},{"id":"S0069","region":"남부","city":"성남시","name":"창곡배수지","lat":37.4547778,"lon":127.1565123,"addr":"","radius_m":1198.6,"grade":"대형"},{"id":"S0070","region":"남부","city":"성남시","name":"성남여자고등학교","lat":37.435871,"lon":127.1454333,"addr":"","radius_m":1200.3,"grade":"대형"},{"id":"S0071","region":"남부","city":"성남시","name":"대일초등학교","lat":37.4384465,"lon":127.1641046,"addr":"","radius_m":1197.5,"grade":"대형"},{"id":"S0072","region":"남부","city":"성남시","name":"도촌동행정복지센터","lat":37.4164619,"lon":127.1527865,"addr":"","radius_m":1004.5,"grade":"중형"},{"id":"S0073","region":"남부","city":"성남시","name":"분당구청","lat":37.3826619,"lon":127.1191029,"addr":"","radius_m":1198.8,"grade":"대형"},{"id":"S0074","region":"남부","city":"성남시","name":"분당구보건소","lat":37.4110111,"lon":127.1246111,"addr":"","radius_m":1197.6,"grade":"대형"},{"id":"S0075","region":"남부","city":"성남시","name":"분당2배수지","lat":37.3780335,"lon":127.1435827,"addr":"","radius_m":1199.4,"grade":"대형"},{"id":"S0076","region":"남부","city":"성남시","name":"분당2소배수지","lat":37.3442936,"lon":127.1230677,"addr":"","radius_m":1197.7,"grade":"대형"},{"id":"S0077","region":"남부","city":"성남시","name":"분당3배수지","lat":37.3470875,"lon":127.10551,"addr":"","radius_m":1199.4,"grade":"대형"},{"id":"S0078","region":"남부","city":"성남시","name":"운중동행정복지센터","lat":37.3895792,"lon":127.0769719,"addr":"","radius_m":1012.7,"grade":"중형"},{"id":"S0079","region":"남부","city":"성남시","name":"삼평동행정복지센터","lat":37.4060194,"lon":127.1163083,"addr":"","radius_m":998.7,"grade":"중형"},{"id":"S0080","region":"남부","city":"성남시","name":"판교동행정복지센터","lat":37.3899417,"lon":127.098575,"addr":"","radius_m":1007.6,"grade":"중형"},{"id":"S0081","region":"남부","city":"성남시","name":"정자2동행정복지센터","lat":37.3659755,"lon":127.115245,"addr":"","radius_m":1009.1,"grade":"중형"},{"id":"S0082","region":"남부","city":"성남시","name":"하대원동행정복지센터","lat":37.4282778,"lon":127.1462778,"addr":"","radius_m":1004,"grade":"중형"},{"id":"S0083","region":"남부","city":"성남시","name":"금곡동경로당","lat":37.3626709,"lon":127.0972424,"addr":"","radius_m":1000,"grade":"중형"},{"id":"S0084","region":"남부","city":"성남시","name":"시흥동행정복지센터","lat":37.4215444,"lon":127.1074194,"addr":"","radius_m":798.8,"grade":"DMB"},{"id":"S0085","region":"남부","city":"성남시","name":"중원구청","lat":37.4303917,"lon":127.1371238,"addr":"","radius_m":799.4,"grade":"DMB"},{"id":"S0086","region":"남부","city":"성남시","name":"수내1동행정복지센터","lat":37.3751852,"lon":127.1180306,"addr":"","radius_m":799.6,"grade":"DMB"},{"id":"S0087","region":"남부","city":"성남시","name":"수내3동행정복지센터","lat":37.3668278,"lon":127.1261269,"addr":"","radius_m":799.9,"grade":"DMB"},{"id":"S0088","region":"남부","city":"성남시","name":"서현1동행정복지센터","lat":37.3824111,"lon":127.1260667,"addr":"","radius_m":798.7,"grade":"DMB"},{"id":"S0089","region":"남부","city":"성남시","name":"이매1동행정복지센터","lat":37.399525,"lon":127.1272083,"addr":"","radius_m":801,"grade":"DMB"},{"id":"S0090","region":"남부","city":"성남시","name":"이매2동행정복지센터","lat":37.3995404,"lon":127.1218732,"addr":"","radius_m":800.6,"grade":"DMB"},{"id":"S0091","region":"남부","city":"성남시","name":"야탑3동행정복지센터","lat":37.4107972,"lon":127.137925,"addr":"","radius_m":799,"grade":"DMB"},{"id":"S0092","region":"남부","city":"성남시","name":"구미동행정복지센터","lat":37.3401077,"lon":127.1225405,"addr":"","radius_m":798.7,"grade":"DMB"},{"id":"S0093","region":"남부","city":"성남시","name":"성남동노인복지회관","lat":37.4320045,"lon":127.1315674,"addr":"","radius_m":800.1,"grade":"DMB"},{"id":"S0094","region":"남부","city":"성남시","name":"복정동행정복지센터","lat":37.4658,"lon":127.127124,"addr":"","radius_m":999.9,"grade":""},{"id":"S0095","region":"남부","city":"성남시","name":"위례동행정복지센터","lat":37.4669249,"lon":127.1495165,"addr":"","radius_m":1003.5,"grade":""},{"id":"S0096","region":"남부","city":"성남시","name":"위례중앙초등학교","lat":37.4716335,"lon":127.1385454,"addr":"","radius_m":999.5,"grade":""},{"id":"S0097","region":"남부","city":"성남시","name":"신촌동행정복지센터","lat":37.4545476,"lon":127.1045015,"addr":"","radius_m":800,"grade":"DMB"},{"id":"S0098","region":"남부","city":"성남시","name":"정자3동행정복지센터","lat":37.360696,"lon":127.1195044,"addr":"","radius_m":800,"grade":"DMB"},{"id":"S0099","region":"남부","city":"부천시","name":"부천시청","lat":37.5036894,"lon":126.7659372,"addr":"","radius_m":1201.2,"grade":"대형"},{"id":"S0100","region":"남부","city":"부천시","name":"원미어울마당","lat":37.496512,"lon":126.787101,"addr":"","radius_m":1199.5,"grade":"대형"},{"id":"S0101","region":"남부","city":"부천시","name":"KT부천지사","lat":37.4865965,"lon":126.7749083,"addr":"","radius_m":1208,"grade":"대형"},{"id":"S0102","region":"남부","city":"부천시","name":"역곡1동주민지원센터","lat":37.489152,"lon":126.81671,"addr":"","radius_m":1229.3,"grade":"대형"},{"id":"S0103","region":"남부","city":"부천시","name":"도당동주민지원센터","lat":37.5162598,"lon":126.7859341,"addr":"","radius_m":1218.2,"grade":"대형"},{"id":"S0104","region":"남부","city":"부천시","name":"상1동주민지원센터","lat":37.4918278,"lon":126.7531402,"addr":"","radius_m":1198.7,"grade":"대형"},{"id":"S0105","region":"남부","city":"부천시","name":"소사어울마당","lat":37.4800422,"lon":126.7999338,"addr":"","radius_m":1200.6,"grade":"대형"},{"id":"S0106","region":"남부","city":"부천시","name":"심곡도서관","lat":37.4802641,"lon":126.7839076,"addr":"","radius_m":1201.7,"grade":"대형"},{"id":"S0107","region":"남부","city":"부천시","name":"소사배수지","lat":37.469803,"lon":126.8048518,"addr":"","radius_m":1199.3,"grade":"대형"},{"id":"S0108","region":"남부","city":"부천시","name":"원종1동주민지원센터","lat":37.5258978,"lon":126.805432,"addr":"","radius_m":1199.6,"grade":"대형"},{"id":"S0109","region":"남부","city":"부천시","name":"부천아트벙커B39","lat":37.5213421,"lon":126.767408,"addr":"","radius_m":1202,"grade":"대형"},{"id":"S0110","region":"남부","city":"부천시","name":"남부수자원생태공원","lat":37.4701273,"lon":126.8282924,"addr":"","radius_m":1197.6,"grade":"대형"},{"id":"S0111","region":"남부","city":"부천시","name":"꿈여울도서관","lat":37.5154269,"lon":126.8055711,"addr":"","radius_m":1002.3,"grade":"중형"},{"id":"S0112","region":"남부","city":"부천시","name":"대장동복지회관","lat":37.543127,"lon":126.782696,"addr":"","radius_m":1001.3,"grade":"중형"},{"id":"S0113","region":"남부","city":"부천시","name":"고강본동주민지원센터","lat":37.5270092,"lon":126.8248127,"addr":"","radius_m":799.7,"grade":"DMB"},{"id":"S0114","region":"남부","city":"부천시","name":"송내1동주민지원센터","lat":37.484096,"lon":126.756077,"addr":"","radius_m":1008.8,"grade":"중형"},{"id":"S0115","region":"남부","city":"안산시","name":"대부동행정복지센터","lat":37.2436784,"lon":126.5852946,"addr":"","radius_m":1197.4,"grade":"대형"},{"id":"S0116","region":"남부","city":"안산시","name":"안산시민방위교육장","lat":37.329613,"lon":126.8459881,"addr":"","radius_m":998.3,"grade":"중형"},{"id":"S0117","region":"남부","city":"안산시","name":"반월동행정복지센터","lat":37.3060097,"lon":126.9021787,"addr":"","radius_m":1197.9,"grade":"대형"},{"id":"S0118","region":"남부","city":"안산시","name":"본오1동작은도서관","lat":37.2892251,"lon":126.8644883,"addr":"","radius_m":1197.7,"grade":"대형"},{"id":"S0119","region":"남부","city":"안산시","name":"부곡동행정복지센터","lat":37.3320279,"lon":126.8609901,"addr":"","radius_m":998.5,"grade":"중형"},{"id":"S0120","region":"남부","city":"안산시","name":"사동행정복지센터","lat":37.2970377,"lon":126.8510172,"addr":"","radius_m":997.9,"grade":"중형"},{"id":"S0121","region":"남부","city":"안산시","name":"성곡배수지","lat":37.3191551,"lon":126.7618311,"addr":"","radius_m":1200,"grade":"대형"},{"id":"S0122","region":"남부","city":"안산시","name":"안산시청 옥상","lat":37.3218778,"lon":126.8308848,"addr":"","radius_m":1204.7,"grade":"대형"},{"id":"S0123","region":"남부","city":"안산시","name":"와동배수지","lat":37.3347479,"lon":126.8270938,"addr":"","radius_m":1197.3,"grade":"대형"},{"id":"S0124","region":"남부","city":"안산시","name":"단원구청","lat":37.3210428,"lon":126.8151637,"addr":"","radius_m":1198.2,"grade":"대형"},{"id":"S0125","region":"남부","city":"안산시","name":"원곡동행정복지센터","lat":37.3332822,"lon":126.7907721,"addr":"","radius_m":1197.3,"grade":"대형"},{"id":"S0126","region":"남부","city":"안산시","name":"원시119안전센터","lat":37.3128871,"lon":126.7934704,"addr":"","radius_m":1197.4,"grade":"대형"},{"id":"S0127","region":"남부","city":"안산시","name":"일동배수지","lat":37.3032793,"lon":126.8725106,"addr":"","radius_m":1197.4,"grade":"대형"},{"id":"S0128","region":"남부","city":"안산시","name":"정지초등학교 옥상","lat":37.3417255,"lon":126.8113816,"addr":"","radius_m":1198.4,"grade":"대형"},{"id":"S0129","region":"남부","city":"안산시","name":"호수동행정복지센터","lat":37.3102305,"lon":126.8243802,"addr":"","radius_m":998,"grade":"중형"},{"id":"S0130","region":"남부","city":"안산시","name":"안산동행정복지센터","lat":37.3618635,"lon":126.873291,"addr":"","radius_m":998.6,"grade":"중형"},{"id":"S0131","region":"남부","city":"화성시","name":"봉담읍행정복지센터","lat":37.2197157,"lon":126.9494875,"addr":"","radius_m":1200,"grade":"대형"},{"id":"S0132","region":"남부","city":"화성시","name":"유리마을회관","lat":37.1746541,"lon":126.9299295,"addr":"","radius_m":1000,"grade":"중형"},{"id":"S0133","region":"남부","city":"화성시","name":"우정읍행정복지센터","lat":37.0897973,"lon":126.8153798,"addr":"","radius_m":1200,"grade":"대형"},{"id":"S0134","region":"남부","city":"화성시","name":"조암3리마을회관","lat":37.0838939,"lon":126.8158788,"addr":"","radius_m":1000,"grade":"중형"},{"id":"S0135","region":"남부","city":"화성시","name":"향남읍행정복지센터","lat":37.1323558,"lon":126.920186,"addr":"","radius_m":1200,"grade":"대형"},{"id":"S0136","region":"남부","city":"화성시","name":"상신3리마을회관","lat":37.1003321,"lon":126.9050104,"addr":"","radius_m":1000,"grade":"중형"},{"id":"S0137","region":"남부","city":"화성시","name":"화성시청","lat":37.1995889,"lon":126.8313472,"addr":"","radius_m":1000,"grade":"중형"},{"id":"S0138","region":"남부","city":"화성시","name":"남양읍행정복지센터","lat":37.2114792,"lon":126.8240014,"addr":"","radius_m":400,"grade":"소형"},{"id":"S0139","region":"남부","city":"화성시","name":"남양2리마을회관","lat":37.2094711,"lon":126.8156373,"addr":"","radius_m":1000,"grade":"중형"},{"id":"S0140","region":"남부","city":"화성시","name":"매송면행정복지센터","lat":37.2522574,"lon":126.9093984,"addr":"","radius_m":1000,"grade":"중형"},{"id":"S0141","region":"남부","city":"화성시","name":"비봉면행정복지센터","lat":37.2353733,"lon":126.8736248,"addr":"","radius_m":1000,"grade":"중형"},{"id":"S0142","region":"남부","city":"화성시","name":"마도면행정복지센터","lat":37.2053952,"lon":126.769565,"addr":"","radius_m":1000,"grade":"중형"},{"id":"S0143","region":"남부","city":"화성시","name":"송산면행정복지센터","lat":37.2178685,"lon":126.7391058,"addr":"","radius_m":1200,"grade":"대형"},{"id":"S0144","region":"남부","city":"화성시","name":"봉가2리마을회관","lat":37.2080216,"lon":126.7364655,"addr":"","radius_m":1000,"grade":"중형"},{"id":"S0145","region":"남부","city":"화성시","name":"서신면행정복지센터","lat":37.166575,"lon":126.7087128,"addr":"","radius_m":400,"grade":"소형"},{"id":"S0146","region":"남부","city":"화성시","name":"팔탄면행정복지센터","lat":37.1622585,"lon":126.9048178,"addr":"","radius_m":1000,"grade":"중형"},{"id":"S0147","region":"남부","city":"화성시","name":"장안면행정복지센터","lat":37.0799101,"lon":126.8312798,"addr":"","radius_m":400,"grade":"소형"},{"id":"S0148","region":"남부","city":"화성시","name":"양감면행정복지센터","lat":37.0813803,"lon":126.9444515,"addr":"","radius_m":400,"grade":"소형"},{"id":"S0149","region":"남부","city":"화성시","name":"정남면행정복지센터","lat":37.1600314,"lon":126.9713225,"addr":"","radius_m":1000,"grade":"중형"},{"id":"S0150","region":"남부","city":"화성시","name":"동부출장소","lat":37.2088114,"lon":127.0356882,"addr":"","radius_m":1200,"grade":"대형"},{"id":"S0151","region":"남부","city":"화성시","name":"진안동행정복지센터","lat":37.2134048,"lon":127.0350007,"addr":"","radius_m":1000,"grade":"중형"},{"id":"S0152","region":"남부","city":"화성시","name":"병점2동행정복지센터","lat":37.2115433,"lon":127.0430646,"addr":"","radius_m":1000,"grade":"중형"},{"id":"S0153","region":"남부","city":"화성시","name":"반월동행정복지센터","lat":37.2329875,"lon":127.0606836,"addr":"","radius_m":1000,"grade":"중형"},{"id":"S0154","region":"남부","city":"화성시","name":"기배동행정복지센터","lat":37.224409,"lon":126.984771,"addr":"","radius_m":1000,"grade":"중형"},{"id":"S0155","region":"남부","city":"화성시","name":"화산동행정복지센터","lat":37.2062094,"lon":127.0150071,"addr":"","radius_m":1000,"grade":"중형"},{"id":"S0156","region":"남부","city":"화성시","name":"동탄1동행정복지센터","lat":37.2065621,"lon":127.0719729,"addr":"","radius_m":1000,"grade":"중형"},{"id":"S0157","region":"남부","city":"화성시","name":"동탄2동행정복지센터","lat":37.196921,"lon":127.0722999,"addr":"","radius_m":1000,"grade":"중형"},{"id":"S0158","region":"남부","city":"화성시","name":"동탄3동행정복지센터","lat":37.2100905,"lon":127.0583609,"addr":"","radius_m":1000,"grade":"중형"},{"id":"S0159","region":"남부","city":"화성시","name":"동탄4동행정복지센터","lat":37.1995137,"lon":127.1123026,"addr":"","radius_m":1000,"grade":"중형"},{"id":"S0160","region":"남부","city":"화성시","name":"동탄6동행정복지센터","lat":37.173469,"lon":127.0892501,"addr":"","radius_m":800,"grade":"DMB"},{"id":"S0161","region":"남부","city":"화성시","name":"새솔동행정복지센터","lat":37.2812595,"lon":126.8188121,"addr":"","radius_m":1000.9,"grade":""},{"id":"S0162","region":"남부","city":"화성시","name":"난청지역(동탄8동)","lat":37.162194,"lon":127.1054373,"addr":"","radius_m":1001.1,"grade":""},{"id":"S0163","region":"남부","city":"화성시","name":"동탄5동행정복지센터","lat":37.205846,"lon":127.1129534,"addr":"","radius_m":1000,"grade":"중형"},{"id":"S0164","region":"남부","city":"화성시","name":"동탄7동행정복지센터","lat":37.1704993,"lon":127.1103473,"addr":"","radius_m":1000,"grade":"중형"},{"id":"S0165","region":"남부","city":"안양시","name":"안양시청","lat":37.3943423,"lon":126.9568652,"addr":"","radius_m":1200,"grade":"대형"},{"id":"S0166","region":"남부","city":"안양시","name":"만안구청","lat":37.3865929,"lon":126.9325269,"addr":"","radius_m":1200,"grade":"대형"},{"id":"S0167","region":"남부","city":"안양시","name":"안양4동행정복지센터","lat":37.3963833,"lon":126.9177959,"addr":"","radius_m":1200,"grade":"대형"},{"id":"S0168","region":"남부","city":"안양시","name":"박달1동행정복지센터","lat":37.4036927,"lon":126.9090645,"addr":"","radius_m":1200,"grade":"대형"},{"id":"S0169","region":"남부","city":"안양시","name":"관양1동행정복지센터","lat":37.403593,"lon":126.9654531,"addr":"","radius_m":1000,"grade":"중형"},{"id":"S0170","region":"남부","city":"안양시","name":"관양도서관","lat":37.4106002,"lon":126.9702452,"addr":"","radius_m":1000,"grade":"중형"},{"id":"S0171","region":"남부","city":"안양시","name":"석수3동행정복지센터","lat":37.4086762,"lon":126.8953481,"addr":"","radius_m":1000,"grade":"중형"},{"id":"S0172","region":"남부","city":"안양시","name":"평촌동행정복지센터","lat":37.3946372,"lon":126.9771602,"addr":"","radius_m":1000,"grade":"중형"},{"id":"S0173","region":"남부","city":"안양시","name":"호계3동행정복지센터","lat":37.3673859,"lon":126.958715,"addr":"","radius_m":997.4,"grade":"중형"},{"id":"S0174","region":"남부","city":"안양시","name":"안양9동행정복지센터","lat":37.3914992,"lon":126.9084259,"addr":"","radius_m":1000,"grade":"중형"},{"id":"S0175","region":"남부","city":"안양시","name":"비산3동행정복지센터","lat":37.4042697,"lon":126.9448276,"addr":"","radius_m":800,"grade":"DMB"},{"id":"S0176","region":"남부","city":"안양시","name":"안양6동 신성고","lat":37.3840804,"lon":126.9188502,"addr":"","radius_m":800,"grade":"DMB"},{"id":"S0177","region":"남부","city":"안양시","name":"안양9동","lat":37.3831573,"lon":126.9016088,"addr":"","radius_m":800,"grade":"DMB"},{"id":"S0178","region":"남부","city":"안양시","name":"귀인동행정복지센터","lat":37.3854612,"lon":126.9694173,"addr":"","radius_m":800,"grade":"DMB"},{"id":"S0179","region":"남부","city":"안양시","name":"석수2동행정복지센터","lat":37.4138454,"lon":126.9093992,"addr":"","radius_m":1200,"grade":"대형"},{"id":"S0180","region":"남부","city":"안양시","name":"비산1동행정복지센터","lat":37.3997435,"lon":126.9337529,"addr":"","radius_m":1200,"grade":"대형"},{"id":"S0181","region":"남부","city":"안양시","name":"호계도서관","lat":37.3834991,"lon":126.9504422,"addr":"","radius_m":1200,"grade":"대형"},{"id":"S0182","region":"남부","city":"평택시","name":"평택호다목적","lat":36.9160191,"lon":126.9061562,"addr":"","radius_m":800,"grade":"소형"},{"id":"S0183","region":"남부","city":"평택시","name":"영상정보운영사업소","lat":37.0010319,"lon":127.1223114,"addr":"","radius_m":1000,"grade":"중형"},{"id":"S0184","region":"남부","city":"평택시","name":"평택항홍보관","lat":36.9698672,"lon":126.8475394,"addr":"","radius_m":1000,"grade":"중형"},{"id":"S0185","region":"남부","city":"평택시","name":"비전1동행정복지센터","lat":37.0005183,"lon":127.0952672,"addr":"","radius_m":798.3,"grade":"소형"},{"id":"S0186","region":"남부","city":"평택시","name":"고덕면행정복지센터","lat":37.0423778,"lon":127.0180135,"addr":"","radius_m":800.4,"grade":"소형"},{"id":"S0187","region":"남부","city":"평택시","name":"포승읍행정복지센터","lat":36.9826054,"lon":126.8853606,"addr":"","radius_m":798.7,"grade":"중형"},{"id":"S0188","region":"남부","city":"평택시","name":"농협은행평택시지부","lat":36.9945257,"lon":127.0872352,"addr":"","radius_m":1199.1,"grade":"대형"},{"id":"S0189","region":"남부","city":"평택시","name":"평택시청","lat":36.9921615,"lon":127.1127735,"addr":"","radius_m":1197.7,"grade":"대형"},{"id":"S0190","region":"남부","city":"평택시","name":"서부문화예술회관","lat":36.9896318,"lon":126.919648,"addr":"","radius_m":1197.2,"grade":"대형"},{"id":"S0191","region":"남부","city":"평택시","name":"팽성읍행정복지센터","lat":36.9650173,"lon":127.0624405,"addr":"","radius_m":1196.3,"grade":"대형"},{"id":"S0192","region":"남부","city":"평택시","name":"서정동행정복지센터","lat":37.0676707,"lon":127.0546647,"addr":"","radius_m":1198.5,"grade":"대형"},{"id":"S0193","region":"남부","city":"평택시","name":"신장1동행정복지센터","lat":37.0827517,"lon":127.0532511,"addr":"","radius_m":1197.7,"grade":"대형"},{"id":"S0194","region":"남부","city":"평택시","name":"오성면행정복지센터","lat":37.0071846,"lon":126.9795866,"addr":"","radius_m":798.8,"grade":"중형"},{"id":"S0195","region":"남부","city":"평택시","name":"원평동행정복지센터","lat":36.9893096,"lon":127.0805867,"addr":"","radius_m":801,"grade":"DMB"},{"id":"S0196","region":"남부","city":"평택시","name":"팽성읍 원정리마을회관","lat":36.9745914,"lon":127.0416126,"addr":"","radius_m":801.2,"grade":"DMB"},{"id":"S0197","region":"남부","city":"평택시","name":"팽성읍 신궁리마을회관","lat":36.9778588,"lon":127.0746604,"addr":"","radius_m":801.1,"grade":"DMB"},{"id":"S0198","region":"남부","city":"평택시","name":"팽성읍 석봉리마을회관","lat":36.9840779,"lon":127.0414319,"addr":"","radius_m":800,"grade":"DMB"},{"id":"S0199","region":"남부","city":"평택시","name":"진위면행정복지센터","lat":37.0998385,"lon":127.091011,"addr":"","radius_m":800.7,"grade":"DMB"},{"id":"S0200","region":"남부","city":"평택시","name":"서탄면행정복지센터","lat":37.1081608,"lon":127.0351876,"addr":"","radius_m":801.2,"grade":"DMB"},{"id":"S0201","region":"남부","city":"평택시","name":"고덕면 문곡리마을회관","lat":37.0601259,"lon":127.0055953,"addr":"","radius_m":800.1,"grade":"DMB"},{"id":"S0202","region":"남부","city":"평택시","name":"청북읍행정복지센터","lat":37.0400364,"lon":126.934578,"addr":"","radius_m":801.7,"grade":"DMB"},{"id":"S0203","region":"남부","city":"평택시","name":"통복동행정복지센터","lat":37.0008488,"lon":127.0872866,"addr":"","radius_m":800.3,"grade":"DMB"},{"id":"S0204","region":"남부","city":"평택시","name":"송탄동행정복지센터","lat":37.0443512,"lon":127.0950107,"addr":"","radius_m":798.8,"grade":"DMB"},{"id":"S0205","region":"남부","city":"평택시","name":"오성면 안화리마을회관","lat":37.0192034,"lon":126.9978735,"addr":"","radius_m":798.5,"grade":"DMB"},{"id":"S0206","region":"남부","city":"평택시","name":"현덕면행정복지센터","lat":36.9673144,"lon":126.9215963,"addr":"","radius_m":799.6,"grade":"DMB"},{"id":"S0207","region":"남부","city":"평택시","name":"안중읍행정복지센터","lat":36.9857025,"lon":126.9319394,"addr":"","radius_m":798.7,"grade":"DMB"},{"id":"S0208","region":"남부","city":"평택시","name":"청북도서관","lat":37.0205367,"lon":126.9180521,"addr":"","radius_m":1000,"grade":"중형"},{"id":"S0209","region":"남부","city":"시흥시","name":"시흥시청","lat":37.3799714,"lon":126.8028701,"addr":"","radius_m":1200,"grade":"대형"},{"id":"S0210","region":"남부","city":"시흥시","name":"다다커뮤니티센터","lat":37.4429407,"lon":126.7885077,"addr":"","radius_m":1200,"grade":"대형"},{"id":"S0211","region":"남부","city":"시흥시","name":"신천동행정복지센터","lat":37.4353673,"lon":126.7817318,"addr":"","radius_m":1000,"grade":"중형"},{"id":"S0212","region":"남부","city":"시흥시","name":"군자동행정복지센터","lat":37.3398538,"lon":126.7849841,"addr":"","radius_m":1205.7,"grade":"대형"},{"id":"S0213","region":"남부","city":"시흥시","name":"은행동행정복지센터","lat":37.4362673,"lon":126.797963,"addr":"","radius_m":1200,"grade":"대형"},{"id":"S0214","region":"남부","city":"시흥시","name":"정왕본동행정복지센터","lat":37.3490769,"lon":126.7462562,"addr":"","radius_m":1200,"grade":"대형"},{"id":"S0215","region":"남부","city":"시흥시","name":"정왕2동행정복지센터","lat":37.3508875,"lon":126.7288865,"addr":"","radius_m":1000,"grade":"중형"},{"id":"S0216","region":"남부","city":"시흥시","name":"월곶동문화센터","lat":37.3886605,"lon":126.7362318,"addr":"","radius_m":1000,"grade":"중형"},{"id":"S0217","region":"남부","city":"시흥시","name":"맑은물관리센터","lat":37.337511,"lon":126.6964745,"addr":"","radius_m":1200,"grade":"대형"},{"id":"S0218","region":"남부","city":"시흥시","name":"신현동행정복지센터","lat":37.4061382,"lon":126.7845991,"addr":"","radius_m":800.6,"grade":"DMB"},{"id":"S0219","region":"남부","city":"시흥시","name":"매화동행정복지센터","lat":37.4175368,"lon":126.8155151,"addr":"","radius_m":801,"grade":"DMB"},{"id":"S0220","region":"남부","city":"시흥시","name":"목감동행정복지센터","lat":37.3845533,"lon":126.8573343,"addr":"","radius_m":802,"grade":"DMB"},{"id":"S0221","region":"남부","city":"시흥시","name":"과림동행정복지센터","lat":37.4367664,"lon":126.8328067,"addr":"","radius_m":800.7,"grade":"DMB"},{"id":"S0222","region":"남부","city":"시흥시","name":"능곡동행정복지센터","lat":37.3661102,"lon":126.8157628,"addr":"","radius_m":1002.1,"grade":"중형"},{"id":"S0223","region":"남부","city":"시흥시","name":"장곡동행정복지센터","lat":37.3777052,"lon":126.7878742,"addr":"","radius_m":1000,"grade":"중형"},{"id":"S0224","region":"남부","city":"시흥시","name":"배곧1동행정복지센터","lat":37.3717144,"lon":126.7357718,"addr":"","radius_m":1000,"grade":"중형"},{"id":"S0225","region":"남부","city":"시흥시","name":"정왕1동행정복지센터","lat":37.3401506,"lon":126.7440023,"addr":"","radius_m":1000,"grade":"중형"},{"id":"S0226","region":"남부","city":"시흥시","name":"시흥시외국인복지센터","lat":37.3359343,"lon":126.7297749,"addr":"","radius_m":1000,"grade":"중형"},{"id":"S0227","region":"남부","city":"시흥시","name":"배곧2동행정복지센터","lat":37.3610802,"lon":126.7123147,"addr":"","radius_m":1200,"grade":"대형"},{"id":"S0228","region":"남부","city":"김포시","name":"통진읍행정복지센터","lat":37.6917425,"lon":126.5973591,"addr":"김포시 통진읍 김포대로2250번길 24-11","radius_m":1935,"grade":"대형"},{"id":"S0229","region":"남부","city":"김포시","name":"수참2리마을회관","lat":37.6801925,"lon":126.6293288,"addr":"김포시 통진읍 김포대로1938번길 60","radius_m":1458,"grade":"중형"},{"id":"S0230","region":"남부","city":"김포시","name":"고촌읍행정복지센터","lat":37.6033556,"lon":126.7709611,"addr":"김포시 월곶면 문수산로 373","radius_m":1935,"grade":"대형"},{"id":"S0231","region":"남부","city":"김포시","name":"양촌읍행정복지센터","lat":37.6572534,"lon":126.6254145,"addr":"김포시 양촌읍 양곡1로56번길 49","radius_m":1458,"grade":"중형"},{"id":"S0232","region":"남부","city":"김포시","name":"대곶면행정복지센터","lat":37.6490455,"lon":126.5818948,"addr":"김포시 대곶면 율생로 83-23","radius_m":1458,"grade":"중형"},{"id":"S0233","region":"남부","city":"김포시","name":"월곶면행정복지센터","lat":37.7150218,"lon":126.552921,"addr":"김포시 월곶면 군하로276번길 20","radius_m":1458,"grade":"중형"},{"id":"S0234","region":"남부","city":"김포시","name":"포내1리마을회관","lat":37.7208007,"lon":126.527447,"addr":"김포시 월곶면 포내로83번길 12","radius_m":1458,"grade":"중형"},{"id":"S0235","region":"남부","city":"김포시","name":"보구곶리대피소","lat":37.7575406,"lon":126.529774,"addr":"김포시 월곶면 문수산로 373","radius_m":1458,"grade":"중형"},{"id":"S0236","region":"남부","city":"김포시","name":"용강리 구)마을회관","lat":37.7569629,"lon":126.5541336,"addr":"김포시 월곶면 용강리 335-11","radius_m":1458,"grade":"중형"},{"id":"S0237","region":"남부","city":"김포시","name":"하성면행정복지센터","lat":37.7198155,"lon":126.6309761,"addr":"김포시 하성면 애기봉로 845","radius_m":1458,"grade":"중형"},{"id":"S0238","region":"남부","city":"김포시","name":"석탄5리마을회관","lat":37.7299543,"lon":126.651971,"addr":"김포시 하성면 석평로 222","radius_m":1458,"grade":"중형"},{"id":"S0239","region":"남부","city":"김포시","name":"마조1리마을회관","lat":37.7419779,"lon":126.6333365,"addr":"김포시 하성면 하성로794번길 12","radius_m":1458,"grade":"중형"},{"id":"S0240","region":"남부","city":"김포시","name":"김포본동행정복지센터","lat":37.6274392,"lon":126.7056889,"addr":"김포시 북변동 북변1로 13","radius_m":1156,"grade":"중형"},{"id":"S0241","region":"남부","city":"김포시","name":"장기본동행정복지센터","lat":37.65234,"lon":126.6717398,"addr":"김포시 장기동 김포대로 4133","radius_m":1569,"grade":"대형"},{"id":"S0242","region":"남부","city":"김포시","name":"장릉배수지","lat":37.6146359,"lon":126.7128748,"addr":"김포시 사우동 1312-2","radius_m":1458,"grade":"대형"},{"id":"S0243","region":"남부","city":"김포시","name":"풍무동행정복지센터","lat":37.6023037,"lon":126.7220213,"addr":"김포시 풍무동 풍무로 74","radius_m":1156,"grade":"중형"},{"id":"S0244","region":"남부","city":"김포시","name":"장기동행정복지센터","lat":37.6397116,"lon":126.6714318,"addr":"김포시 김포한강2로 112","radius_m":1156,"grade":"중형"},{"id":"S0245","region":"남부","city":"김포시","name":"구래동행정복지센터","lat":37.6465339,"lon":126.6236968,"addr":"김포시 김포한강2로 112","radius_m":1156,"grade":"중형"},{"id":"S0246","region":"남부","city":"김포시","name":"운양동행정복지센터","lat":37.6514373,"lon":126.6830982,"addr":"김포시 운양동 568-1","radius_m":1156,"grade":"중형"},{"id":"S0247","region":"남부","city":"김포시","name":"마산동행정복지센터","lat":37.6434833,"lon":126.6411813,"addr":"","radius_m":998.5,"grade":"중형"},{"id":"S0248","region":"남부","city":"광명시","name":"광명시청","lat":37.4785482,"lon":126.8646372,"addr":"","radius_m":1200,"grade":"대형"},{"id":"S0249","region":"남부","city":"광명시","name":"하안1동주민센터","lat":37.4652395,"lon":126.8692665,"addr":"","radius_m":1000,"grade":"중형"},{"id":"S0250","region":"남부","city":"광명시","name":"하안배수펌프장","lat":37.4680869,"lon":126.8806844,"addr":"","radius_m":1000,"grade":"중형"},{"id":"S0251","region":"남부","city":"광명시","name":"소하1동주민센터","lat":37.4522844,"lon":126.8851659,"addr":"","radius_m":1200,"grade":"대형"},{"id":"S0252","region":"남부","city":"광명시","name":"소하2동주민센터","lat":37.4321974,"lon":126.8803984,"addr":"","radius_m":1200,"grade":"대형"},{"id":"S0253","region":"남부","city":"광명시","name":"온신초등학교","lat":37.4428076,"lon":126.8458014,"addr":"","radius_m":1200,"grade":"대형"},{"id":"S0254","region":"남부","city":"광명시","name":"학온동주민센터","lat":37.4153925,"lon":126.8513334,"addr":"","radius_m":1000,"grade":"중형"},{"id":"S0255","region":"남부","city":"광명시","name":"광명7동행정복지센터","lat":37.4693376,"lon":126.8531416,"addr":"","radius_m":1000,"grade":"중형"},{"id":"S0256","region":"남부","city":"광명시","name":"철산배수펌프장","lat":37.4915011,"lon":126.8689225,"addr":"","radius_m":1000,"grade":"중형"},{"id":"S0257","region":"남부","city":"광명시","name":"광명역세권 난청지역","lat":37.4126602,"lon":126.8817603,"addr":"","radius_m":1000,"grade":""},{"id":"S0258","region":"남부","city":"광주시","name":"오포읍행정복지센터","lat":37.3664954,"lon":127.2286776,"addr":"","radius_m":1200,"grade":"대형"},{"id":"S0259","region":"남부","city":"광주시","name":"능평3리마을회관","lat":37.3457909,"lon":127.1805377,"addr":"","radius_m":800,"grade":"소형"},{"id":"S0260","region":"남부","city":"광주시","name":"초월읍행정복지센터","lat":37.3852014,"lon":127.2879445,"addr":"","radius_m":1000,"grade":"중형"},{"id":"S0261","region":"남부","city":"광주시","name":"곤지암도서관","lat":37.348902,"lon":127.3410226,"addr":"","radius_m":1000,"grade":"중형"},{"id":"S0262","region":"남부","city":"광주시","name":"곤지암읍행정복지센터","lat":37.3493283,"lon":127.3532781,"addr":"","radius_m":400,"grade":"소형"},{"id":"S0263","region":"남부","city":"광주시","name":"도척면행정복지센터","lat":37.3046287,"lon":127.3312481,"addr":"","radius_m":400,"grade":"소형"},{"id":"S0264","region":"남부","city":"광주시","name":"퇴촌면행정복지센터","lat":37.4666333,"lon":127.3070282,"addr":"","radius_m":800,"grade":"DMB"},{"id":"S0265","region":"남부","city":"광주시","name":"남종면행정복지센터","lat":37.4941328,"lon":127.3017178,"addr":"","radius_m":800,"grade":"DMB"},{"id":"S0266","region":"남부","city":"광주시","name":"남한산성면행정복지센터","lat":37.4632748,"lon":127.2446416,"addr":"","radius_m":800,"grade":"DMB"},{"id":"S0267","region":"남부","city":"광주시","name":"곤지암농협만선지점","lat":37.3666159,"lon":127.4044989,"addr":"","radius_m":800,"grade":"DMB"},{"id":"S0268","region":"남부","city":"광주시","name":"광남동행정복지센터","lat":37.3889777,"lon":127.2298111,"addr":"","radius_m":800,"grade":"DMB"},{"id":"S0269","region":"남부","city":"광주시","name":"송정동행정복지센터","lat":37.4196687,"lon":127.2460587,"addr":"","radius_m":800,"grade":"DMB"},{"id":"S0270","region":"남부","city":"광주시","name":"양벌1리 마을회관","lat":37.3714622,"lon":127.2516516,"addr":"","radius_m":998.9,"grade":""},{"id":"S0271","region":"남부","city":"광주시","name":"산이1리 마을회관","lat":37.3621316,"lon":127.3127562,"addr":"","radius_m":998.6,"grade":""},{"id":"S0272","region":"남부","city":"광주시","name":"경안동행정복지센터","lat":37.4108529,"lon":127.257222,"addr":"","radius_m":1200,"grade":"대형"},{"id":"S0273","region":"남부","city":"광주시","name":"광주시청","lat":37.4293518,"lon":127.2551919,"addr":"","radius_m":994.9,"grade":"중형"},{"id":"S0274","region":"남부","city":"군포시","name":"군포1동주민센터","lat":37.3535642,"lon":126.9455322,"addr":"","radius_m":1200,"grade":"대형"},{"id":"S0275","region":"남부","city":"군포시","name":"군포1동창업보육센터","lat":37.3529578,"lon":126.9576363,"addr":"","radius_m":1000,"grade":"중형"},{"id":"S0276","region":"남부","city":"군포시","name":"군포2동주민센터","lat":37.3462425,"lon":126.9430452,"addr":"","radius_m":1500,"grade":"대형"},{"id":"S0277","region":"남부","city":"군포시","name":"부곡도서관","lat":37.3239381,"lon":126.9357288,"addr":"","radius_m":1000,"grade":"중형"},{"id":"S0278","region":"남부","city":"군포시","name":"산본1동주민센터","lat":37.3731951,"lon":126.9385349,"addr":"","radius_m":1200,"grade":"대형"},{"id":"S0279","region":"남부","city":"군포시","name":"금정동주민센터","lat":37.3653139,"lon":126.939363,"addr":"","radius_m":1000,"grade":"중형"},{"id":"S0280","region":"남부","city":"군포시","name":"군포시청","lat":37.3616092,"lon":126.935151,"addr":"","radius_m":1200,"grade":"대형"},{"id":"S0281","region":"남부","city":"군포시","name":"오금동주민센터","lat":37.3510459,"lon":126.9294736,"addr":"","radius_m":1200,"grade":"대형"},{"id":"S0282","region":"남부","city":"군포시","name":"수리동주민센터","lat":37.3560525,"lon":126.920929,"addr":"","radius_m":1000,"grade":"중형"},{"id":"S0283","region":"남부","city":"군포시","name":"궁내동주민센터","lat":37.3595447,"lon":126.9218068,"addr":"","radius_m":1000,"grade":"중형"},{"id":"S0284","region":"남부","city":"군포시","name":"대야동주민센터","lat":37.3302518,"lon":126.9153374,"addr":"","radius_m":1200,"grade":"중형"},{"id":"S0285","region":"남부","city":"군포시","name":"송부동행정복지센터","lat":37.3161973,"lon":126.9238668,"addr":"","radius_m":1000,"grade":"중형"},{"id":"S0286","region":"남부","city":"군포시","name":"난청지역","lat":37.3359085,"lon":126.8901085,"addr":"","radius_m":980.7,"grade":""},{"id":"S0287","region":"남부","city":"이천시","name":"이천시종합복지타운","lat":37.2779127,"lon":127.4410085,"addr":"","radius_m":1200,"grade":"대형"},{"id":"S0288","region":"남부","city":"이천시","name":"장호원읍행정복지센터","lat":37.1146861,"lon":127.6169733,"addr":"","radius_m":1200,"grade":"대형"},{"id":"S0289","region":"남부","city":"이천시","name":"부발읍행정복지센터","lat":37.2836472,"lon":127.4869025,"addr":"","radius_m":1200,"grade":"대형"},{"id":"S0290","region":"남부","city":"이천시","name":"이천시청","lat":37.2717071,"lon":127.4346671,"addr":"","radius_m":1000,"grade":"중형"},{"id":"S0291","region":"남부","city":"이천시","name":"마장면행정복지센터","lat":37.2487134,"lon":127.3581564,"addr":"","radius_m":1000,"grade":"중형"},{"id":"S0292","region":"남부","city":"이천시","name":"증포동행정복지센터","lat":37.2902525,"lon":127.4526697,"addr":"","radius_m":1000,"grade":"중형"},{"id":"S0293","region":"남부","city":"이천시","name":"신둔면행정복지센터","lat":37.3060672,"lon":127.4040186,"addr":"","radius_m":800,"grade":"소형"},{"id":"S0294","region":"남부","city":"이천시","name":"백사면행정복지센터","lat":37.3390354,"lon":127.4905651,"addr":"","radius_m":800,"grade":"소형"},{"id":"S0295","region":"남부","city":"이천시","name":"대월면행정복지센터","lat":37.2297217,"lon":127.4921487,"addr":"","radius_m":800,"grade":"소형"},{"id":"S0296","region":"남부","city":"이천시","name":"단월1통마을회관","lat":37.2234313,"lon":127.4522093,"addr":"","radius_m":800,"grade":"소형"},{"id":"S0297","region":"남부","city":"이천시","name":"모가면행정복지센터","lat":37.1717002,"lon":127.4800085,"addr":"","radius_m":800,"grade":"소형"},{"id":"S0298","region":"남부","city":"이천시","name":"설성면행정복지센터","lat":37.1323564,"lon":127.5219321,"addr":"","radius_m":800,"grade":"소형"},{"id":"S0299","region":"남부","city":"이천시","name":"호법면행정복지센터","lat":37.2227389,"lon":127.4247245,"addr":"","radius_m":800,"grade":"DMB"},{"id":"S0300","region":"남부","city":"이천시","name":"율면행정복지센터","lat":37.0941264,"lon":127.5463316,"addr":"","radius_m":800,"grade":"DMB"},{"id":"S0301","region":"남부","city":"오산시","name":"오산시청","lat":37.1498874,"lon":127.0778504,"addr":"","radius_m":1200,"grade":"대형"},{"id":"S0302","region":"남부","city":"오산시","name":"원동초등학교","lat":37.1356124,"lon":127.0693144,"addr":"","radius_m":1200,"grade":"대형"},{"id":"S0303","region":"남부","city":"오산시","name":"오산대학교","lat":37.1561505,"lon":127.0621475,"addr":"","radius_m":1000,"grade":"중형"},{"id":"S0304","region":"남부","city":"오산시","name":"세마동행정복지센터","lat":37.1882488,"lon":127.0407796,"addr":"","radius_m":1000,"grade":"중형"},{"id":"S0305","region":"남부","city":"오산시","name":"초평동행정복지센터","lat":37.139911,"lon":127.0406777,"addr":"","radius_m":1000,"grade":"중형"},{"id":"S0306","region":"남부","city":"오산시","name":"고현동 마을회관","lat":37.1307816,"lon":127.0889075,"addr":"","radius_m":800,"grade":"DMB"},{"id":"S0307","region":"남부","city":"오산시","name":"신장동행정복지센터","lat":37.1766371,"lon":127.0545318,"addr":"","radius_m":1000,"grade":"중형"},{"id":"S0308","region":"남부","city":"하남시","name":"하남시청","lat":37.5392355,"lon":127.2152258,"addr":"","radius_m":1200,"grade":"대형"},{"id":"S0309","region":"남부","city":"하남시","name":"천현동행정복지센터","lat":37.5192117,"lon":127.2240302,"addr":"","radius_m":1200,"grade":"대형"},{"id":"S0310","region":"남부","city":"하남시","name":"덕풍1동행정복지센터","lat":37.5351867,"lon":127.1985135,"addr":"","radius_m":1200,"grade":"대형"},{"id":"S0311","region":"남부","city":"하남시","name":"덕풍3동행정복지센터","lat":37.5525106,"lon":127.2048815,"addr":"","radius_m":1000,"grade":"중형"},{"id":"S0312","region":"남부","city":"하남시","name":"감북동행정복지센터","lat":37.5161554,"lon":127.1617308,"addr":"","radius_m":1200,"grade":"대형"},{"id":"S0313","region":"남부","city":"하남시","name":"미사2동행정복지센터","lat":37.5670066,"lon":127.1860529,"addr":"","radius_m":1000,"grade":"중형"},{"id":"S0314","region":"남부","city":"하남시","name":"위례동행정복지센터","lat":37.4773496,"lon":127.1524681,"addr":"","radius_m":1000,"grade":"중형"},{"id":"S0315","region":"남부","city":"안성시","name":"안성시청","lat":37.0079695,"lon":127.2796786,"addr":"","radius_m":1201.7,"grade":"대형"},{"id":"S0316","region":"남부","city":"안성시","name":"공도읍사무소","lat":37.0010464,"lon":127.1726362,"addr":"","radius_m":1000,"grade":"중형"},{"id":"S0317","region":"남부","city":"안성시","name":"공도읍중복리회관","lat":36.9710989,"lon":127.1410288,"addr":"","radius_m":800.2,"grade":"DMB"},{"id":"S0318","region":"남부","city":"안성시","name":"진사도서관","lat":36.9940762,"lon":127.1444698,"addr":"","radius_m":999.8,"grade":"중형"},{"id":"S0319","region":"남부","city":"안성시","name":"대덕면사무소","lat":37.0124067,"lon":127.2380032,"addr":"","radius_m":1002.3,"grade":"대형"},{"id":"S0320","region":"남부","city":"안성시","name":"내리마을회관","lat":36.9994356,"lon":127.2231091,"addr":"","radius_m":1014,"grade":"중형"},{"id":"S0321","region":"남부","city":"안성시","name":"고삼면사무소","lat":37.0810294,"lon":127.2635289,"addr":"","radius_m":1089.8,"grade":"중형"},{"id":"S0322","region":"남부","city":"안성시","name":"고삼면 대갈리회관","lat":37.0640264,"lon":127.2489039,"addr":"","radius_m":799.2,"grade":"DMB"},{"id":"S0323","region":"남부","city":"안성시","name":"양성면사무소","lat":37.0599261,"lon":127.1948798,"addr":"","radius_m":1013.2,"grade":"중형"},{"id":"S0324","region":"남부","city":"안성시","name":"보개면사무소","lat":37.0228045,"lon":127.2908611,"addr":"","radius_m":794.6,"grade":"소형"},{"id":"S0325","region":"남부","city":"안성시","name":"죽산면사무소","lat":37.0773118,"lon":127.420834,"addr":"","radius_m":795.7,"grade":"소형"},{"id":"S0326","region":"남부","city":"안성시","name":"삼죽면사무소","lat":37.069303,"lon":127.3811991,"addr":"","radius_m":801.5,"grade":"소형"},{"id":"S0327","region":"남부","city":"안성시","name":"금광면 벤처타운","lat":37.0010196,"lon":127.3226697,"addr":"","radius_m":799.1,"grade":"DMB"},{"id":"S0328","region":"남부","city":"안성시","name":"금광면 개산경로당","lat":36.984621,"lon":127.3026904,"addr":"","radius_m":799.9,"grade":"DMB"},{"id":"S0329","region":"남부","city":"안성시","name":"서운면사무소","lat":36.9430602,"lon":127.259293,"addr":"","radius_m":803.9,"grade":"DMB"},{"id":"S0330","region":"남부","city":"안성시","name":"원곡면사무소","lat":37.0397352,"lon":127.1295178,"addr":"","radius_m":803.2,"grade":"DMB"},{"id":"S0331","region":"남부","city":"안성시","name":"일죽면사무소","lat":37.090574,"lon":127.4769901,"addr":"","radius_m":802.2,"grade":"DMB"},{"id":"S0332","region":"남부","city":"안성시","name":"미양면사무소","lat":36.9753167,"lon":127.2152248,"addr":"","radius_m":800,"grade":"DMB"},{"id":"S0333","region":"남부","city":"안성시","name":"공도읍(송정아파트 난청지역)","lat":37.004524,"lon":127.2007692,"addr":"","radius_m":804.7,"grade":""},{"id":"S0334","region":"남부","city":"의왕시","name":"고천동주민센터","lat":37.3458449,"lon":126.9769308,"addr":"","radius_m":1200,"grade":"대형"},{"id":"S0335","region":"남부","city":"의왕시","name":"부곡동주민센터","lat":37.3186269,"lon":126.9567816,"addr":"","radius_m":1200,"grade":"대형"},{"id":"S0336","region":"남부","city":"의왕시","name":"오전동주민센터","lat":37.3535329,"lon":126.9715039,"addr":"","radius_m":800,"grade":"DMB"},{"id":"S0337","region":"남부","city":"의왕시","name":"내손2동주민센터","lat":37.3876542,"lon":126.9815612,"addr":"","radius_m":1200,"grade":"대형"},{"id":"S0338","region":"남부","city":"의왕시","name":"청계동주민센터","lat":37.388607,"lon":126.9959713,"addr":"","radius_m":1200,"grade":"대형"},{"id":"S0339","region":"남부","city":"의왕시","name":"청계동 백운밸리 커뮤니티센터","lat":37.370309,"lon":127.0076248,"addr":"","radius_m":1002.6,"grade":""},{"id":"S0340","region":"남부","city":"의왕시","name":"농업기술센터","lat":37.2537781,"lon":127.6377221,"addr":"","radius_m":998,"grade":""},{"id":"S0341","region":"남부","city":"의왕시","name":"어린이비전센터","lat":37.7168901,"lon":127.19123,"addr":"","radius_m":1000.5,"grade":""},{"id":"S0342","region":"남부","city":"남양주시","name":"묵현복지문화센터","lat":37.655667,"lon":127.2736397,"addr":"","radius_m":999.6,"grade":""},{"id":"S0343","region":"남부","city":"여주시","name":"가남읍행정복지센터","lat":37.2018338,"lon":127.5451772,"addr":"","radius_m":400,"grade":"소형"},{"id":"S0344","region":"남부","city":"여주시","name":"점동면사무소","lat":37.2060904,"lon":127.662579,"addr":"","radius_m":400,"grade":"소형"},{"id":"S0345","region":"남부","city":"여주시","name":"능서면사무소","lat":37.3002161,"lon":127.5735,"addr":"","radius_m":400,"grade":"소형"},{"id":"S0346","region":"남부","city":"여주시","name":"흥천면사무소","lat":37.3331742,"lon":127.5413013,"addr":"","radius_m":400,"grade":"소형"},{"id":"S0347","region":"남부","city":"여주시","name":"금사면사무소","lat":37.3925911,"lon":127.5333319,"addr":"","radius_m":400,"grade":"소형"},{"id":"S0348","region":"남부","city":"여주시","name":"산북면사무소","lat":37.4017404,"lon":127.4429553,"addr":"","radius_m":400,"grade":"소형"},{"id":"S0349","region":"남부","city":"여주시","name":"대신면사무소","lat":37.3750667,"lon":127.5865858,"addr":"","radius_m":400,"grade":"소형"},{"id":"S0350","region":"남부","city":"여주시","name":"북내면사무소","lat":37.3293116,"lon":127.6789585,"addr":"","radius_m":800,"grade":"DMB"},{"id":"S0351","region":"남부","city":"여주시","name":"강천면사무소","lat":37.2729234,"lon":127.71152,"addr":"","radius_m":800,"grade":"DMB"},{"id":"S0352","region":"남부","city":"여주시","name":"여주시청","lat":37.2982943,"lon":127.6374795,"addr":"","radius_m":1200,"grade":"대형"},{"id":"S0353","region":"남부","city":"여주시","name":"오학동주민센터","lat":37.3097056,"lon":127.6443218,"addr":"","radius_m":400,"grade":"소형"},{"id":"S0354","region":"남부","city":"여주시","name":"중앙동행정복지센터","lat":37.2986392,"lon":127.6289523,"addr":"","radius_m":1000,"grade":"중형"},{"id":"S0355","region":"남부","city":"여주시","name":"세종초등학교","lat":37.2799113,"lon":127.6340091,"addr":"","radius_m":1000,"grade":"중형"},{"id":"S0356","region":"남부","city":"양평군","name":"양평군청","lat":37.491725,"lon":127.4874861,"addr":"","radius_m":1600,"grade":"대형"},{"id":"S0357","region":"남부","city":"양평군","name":"원덕1리 마을회관","lat":37.4671889,"lon":127.5443472,"addr":"","radius_m":1000,"grade":"DMB"},{"id":"S0358","region":"남부","city":"양평군","name":"회현2리 마을회관","lat":37.4611245,"lon":127.509829,"addr":"","radius_m":800,"grade":"DMB"},{"id":"S0359","region":"남부","city":"양평군","name":"도곡1리 마을회관","lat":37.4859028,"lon":127.5143056,"addr":"","radius_m":800,"grade":"DMB"},{"id":"S0360","region":"남부","city":"양평군","name":"강상면사무소","lat":37.477166,"lon":127.4854782,"addr":"","radius_m":400,"grade":""},{"id":"S0361","region":"남부","city":"양평군","name":"강하면사무소","lat":37.4949389,"lon":127.4104556,"addr":"","radius_m":1000,"grade":""},{"id":"S0362","region":"남부","city":"양평군","name":"양서면사무소","lat":37.5439361,"lon":127.3260444,"addr":"","radius_m":1000,"grade":""},{"id":"S0363","region":"남부","city":"양평군","name":"국수출장소","lat":37.5134304,"lon":127.4019764,"addr":"","radius_m":1001.4,"grade":"중형"},{"id":"S0364","region":"남부","city":"양평군","name":"옥천면사무소","lat":37.5180494,"lon":127.456091,"addr":"","radius_m":1450,"grade":"중형"},{"id":"S0365","region":"남부","city":"양평군","name":"서종면사무소","lat":37.606625,"lon":127.34875,"addr":"","radius_m":1000,"grade":"DMB"},{"id":"S0366","region":"남부","city":"양평군","name":"수입3리 마을회관","lat":37.6443472,"lon":127.3886889,"addr":"","radius_m":1000,"grade":"DMB"},{"id":"S0367","region":"남부","city":"양평군","name":"단월면사무소","lat":37.5383806,"lon":127.6728972,"addr":"","radius_m":800.7,"grade":"DMB"},{"id":"S0368","region":"남부","city":"양평군","name":"청운면사무소","lat":37.5561868,"lon":127.7106737,"addr":"","radius_m":1450,"grade":"중형"},{"id":"S0369","region":"남부","city":"양평군","name":"양동면사무소","lat":37.4251806,"lon":127.7511694,"addr":"","radius_m":1000,"grade":""},{"id":"S0370","region":"남부","city":"양평군","name":"삼산2리 마을회관","lat":37.3954946,"lon":127.7766078,"addr":"","radius_m":800,"grade":"DMB"},{"id":"S0371","region":"남부","city":"양평군","name":"지평면사무소","lat":37.4743333,"lon":127.6391667,"addr":"","radius_m":1450,"grade":"중형"},{"id":"S0372","region":"남부","city":"양평군","name":"용문면사무소","lat":37.4867167,"lon":127.5956889,"addr":"","radius_m":1000,"grade":""},{"id":"S0373","region":"남부","city":"양평군","name":"광탄1리 마을회관","lat":37.5088056,"lon":127.6317833,"addr":"","radius_m":800.3,"grade":"DMB"},{"id":"S0374","region":"남부","city":"양평군","name":"용문산 관광지 관리사무소","lat":37.5452583,"lon":127.5830417,"addr":"","radius_m":800,"grade":"DMB"},{"id":"S0375","region":"남부","city":"양평군","name":"개군면사무소","lat":37.4259509,"lon":127.5367899,"addr":"","radius_m":1000,"grade":""},{"id":"S0376","region":"남부","city":"과천시","name":"과천시청","lat":37.429167,"lon":126.9876267,"addr":"","radius_m":1200,"grade":"대형"},{"id":"S0377","region":"남부","city":"과천시","name":"과천동주민센터","lat":37.4483407,"lon":126.9953851,"addr":"","radius_m":800,"grade":"DMB"},{"id":"S0378","region":"북부","city":"고양시","name":"고양시청(주교동)","lat":37.6584472,"lon":126.8320139,"addr":"","radius_m":1200,"grade":"대형"},{"id":"S0379","region":"북부","city":"고양시","name":"신원도서관(원신동)","lat":37.6662861,"lon":126.8864306,"addr":"","radius_m":1000,"grade":"중형"},{"id":"S0380","region":"북부","city":"고양시","name":"흥도동행정복지센터","lat":37.6448972,"lon":126.8543611,"addr":"","radius_m":1000,"grade":"중형"},{"id":"S0381","region":"북부","city":"고양시","name":"도내10통마을회관","lat":37.6188806,"lon":126.8567722,"addr":"","radius_m":1000,"grade":"중형"},{"id":"S0382","region":"북부","city":"고양시","name":"성사1동행정복지센터","lat":37.6544972,"lon":126.8414167,"addr":"","radius_m":1000,"grade":"중형"},{"id":"S0383","region":"북부","city":"고양시","name":"효자동행정복지센터","lat":37.6518611,"lon":126.9206028,"addr":"","radius_m":1200,"grade":"대형"},{"id":"S0384","region":"북부","city":"고양시","name":"신도동행정복지센터","lat":37.65265,"lon":126.8938889,"addr":"","radius_m":1200,"grade":"대형"},{"id":"S0385","region":"북부","city":"고양시","name":"고양동행정복지센터","lat":37.7034,"lon":126.9037167,"addr":"","radius_m":1200,"grade":"대형"},{"id":"S0386","region":"북부","city":"고양시","name":"관산동행정복지센터","lat":37.68805,"lon":126.8624306,"addr":"","radius_m":1200,"grade":"대형"},{"id":"S0387","region":"북부","city":"고양시","name":"종합사회복지관능곡센터","lat":37.6240278,"lon":126.8184028,"addr":"","radius_m":1200,"grade":"대형"},{"id":"S0388","region":"북부","city":"고양시","name":"신평동노인정","lat":37.6237,"lon":126.7886222,"addr":"","radius_m":1000,"grade":"중형"},{"id":"S0389","region":"북부","city":"고양시","name":"덕양구청(화정1동)","lat":37.6375556,"lon":126.8325167,"addr":"","radius_m":1200,"grade":"대형"},{"id":"S0390","region":"북부","city":"고양시","name":"화정2동행정복지센터","lat":37.6305722,"lon":126.8357028,"addr":"","radius_m":1000,"grade":"중형"},{"id":"S0391","region":"북부","city":"고양시","name":"행주16통경로당","lat":37.6015444,"lon":126.8168306,"addr":"","radius_m":1000,"grade":"중형"},{"id":"S0392","region":"북부","city":"고양시","name":"행신2동행정복지센터","lat":37.6151444,"lon":126.832975,"addr":"","radius_m":1200,"grade":"복합"},{"id":"S0393","region":"북부","city":"고양시","name":"행신3동행정복지센터","lat":37.6263889,"lon":126.8386167,"addr":"","radius_m":1000,"grade":"중형"},{"id":"S0394","region":"북부","city":"고양시","name":"화전동행정복지센터","lat":37.5999778,"lon":126.8727278,"addr":"","radius_m":1200,"grade":"대형"},{"id":"S0395","region":"북부","city":"고양시","name":"대덕동행정복지센터","lat":37.5855611,"lon":126.8751917,"addr":"","radius_m":1000,"grade":"중형"},{"id":"S0396","region":"북부","city":"고양시","name":"식사동행정복지센터","lat":37.6773917,"lon":126.8136639,"addr":"","radius_m":1200,"grade":"복합"},{"id":"S0397","region":"북부","city":"고양시","name":"어침이공원","lat":37.6861333,"lon":126.8110722,"addr":"","radius_m":1000,"grade":"중형"},{"id":"S0398","region":"북부","city":"고양시","name":"중산동행정복지센터","lat":37.6918417,"lon":126.7804556,"addr":"","radius_m":1000,"grade":"중형"},{"id":"S0399","region":"북부","city":"고양시","name":"정발산동행정복지센터","lat":37.6724889,"lon":126.7798611,"addr":"","radius_m":1000,"grade":"중형"},{"id":"S0400","region":"북부","city":"고양시","name":"풍산동행정복지센터","lat":37.6640028,"lon":126.7996333,"addr":"","radius_m":1000,"grade":"중형"},{"id":"S0401","region":"북부","city":"고양시","name":"백석1동행정복지센터","lat":37.6496833,"lon":126.7924389,"addr":"","radius_m":1000,"grade":"중형"},{"id":"S0402","region":"북부","city":"고양시","name":"백석2동행정복지센터","lat":37.6439556,"lon":126.785475,"addr":"","radius_m":1000,"grade":"중형"},{"id":"S0403","region":"북부","city":"고양시","name":"KT플라자고양점","lat":37.6558361,"lon":126.7761111,"addr":"","radius_m":1200,"grade":"대형"},{"id":"S0404","region":"북부","city":"고양시","name":"장항1동행정복지센터","lat":37.6416611,"lon":126.7704389,"addr":"","radius_m":1000,"grade":"중형"},{"id":"S0405","region":"북부","city":"고양시","name":"고봉동행정복지센터","lat":37.7018611,"lon":126.8272,"addr":"","radius_m":1000,"grade":"중형"},{"id":"S0406","region":"북부","city":"고양시","name":"일산서구보건소(일산2동)","lat":37.6845194,"lon":126.7758194,"addr":"","radius_m":1200,"grade":"대형"},{"id":"S0407","region":"북부","city":"고양시","name":"탄현동행정복지센터","lat":37.6944028,"lon":126.7684056,"addr":"","radius_m":1200,"grade":"대형"},{"id":"S0408","region":"북부","city":"고양시","name":"그랜드백화점일산점","lat":37.6709722,"lon":126.7611667,"addr":"","radius_m":1200,"grade":"대형"},{"id":"S0409","region":"북부","city":"고양시","name":"대화동행정복지센터","lat":37.683025,"lon":126.7552194,"addr":"","radius_m":1000,"grade":"중형"},{"id":"S0410","region":"북부","city":"고양시","name":"송포동행정복지센터","lat":37.67155,"lon":126.7354806,"addr":"","radius_m":1200,"grade":"대형"},{"id":"S0411","region":"북부","city":"고양시","name":"송산동행정복지센터","lat":37.690975,"lon":126.7544028,"addr":"","radius_m":1200,"grade":"복합"},{"id":"S0412","region":"북부","city":"고양시","name":"송산13통마을회관","lat":37.6816667,"lon":126.7035944,"addr":"","radius_m":1000,"grade":"중형"},{"id":"S0413","region":"북부","city":"고양시","name":"창릉동행정복지센터","lat":37.6454931,"lon":126.8865998,"addr":"","radius_m":1000,"grade":"중형"},{"id":"S0414","region":"북부","city":"남양주시","name":"와부조안행정복지센터","lat":37.5854944,"lon":127.2170167,"addr":"","radius_m":1202.1,"grade":"대형"},{"id":"S0415","region":"북부","city":"남양주시","name":"진접오남행정복지센터","lat":37.7259694,"lon":127.1897861,"addr":"","radius_m":1200,"grade":"대형"},{"id":"S0416","region":"북부","city":"남양주시","name":"화도수동행정복지센터","lat":37.6578222,"lon":127.3007028,"addr":"","radius_m":1200,"grade":"대형"},{"id":"S0417","region":"북부","city":"남양주시","name":"진건퇴계원행정복지센터","lat":37.6556778,"lon":127.178175,"addr":"","radius_m":1200,"grade":"대형"},{"id":"S0418","region":"북부","city":"남양주시","name":"오남읍사무소","lat":37.6983361,"lon":127.2034889,"addr":"","radius_m":1000,"grade":"중형"},{"id":"S0419","region":"북부","city":"남양주시","name":"별내면사무소","lat":37.7026086,"lon":127.1248819,"addr":"","radius_m":800,"grade":"DMB"},{"id":"S0420","region":"북부","city":"남양주시","name":"별내도서관","lat":37.7081444,"lon":127.1177056,"addr":"","radius_m":1000,"grade":"중형"},{"id":"S0421","region":"북부","city":"남양주시","name":"퇴계원면사무소","lat":37.6489639,"lon":127.1445194,"addr":"","radius_m":800,"grade":"소형"},{"id":"S0422","region":"북부","city":"남양주시","name":"수동면사무소","lat":37.7036194,"lon":127.3257056,"addr":"","radius_m":800,"grade":"소형"},{"id":"S0423","region":"북부","city":"남양주시","name":"조안면사무소","lat":37.5358444,"lon":127.3030778,"addr":"","radius_m":800,"grade":"DMB"},{"id":"S0424","region":"북부","city":"남양주시","name":"호평평내행정복지센터","lat":37.6545444,"lon":127.2487861,"addr":"","radius_m":1000,"grade":"중형"},{"id":"S0425","region":"북부","city":"남양주시","name":"평내동주민센터","lat":37.6479528,"lon":127.2358194,"addr":"","radius_m":1200,"grade":"대형"},{"id":"S0426","region":"북부","city":"남양주시","name":"금곡양정행정복지센터","lat":37.6319278,"lon":127.20565,"addr":"","radius_m":1200,"grade":"대형"},{"id":"S0427","region":"북부","city":"남양주시","name":"양정동주민센터","lat":37.6160306,"lon":127.1871944,"addr":"","radius_m":1000,"grade":"중형"},{"id":"S0428","region":"북부","city":"남양주시","name":"다산2동주민센터","lat":37.6104528,"lon":127.1709361,"addr":"","radius_m":1200,"grade":"대형"},{"id":"S0429","region":"북부","city":"남양주시","name":"동부출장소","lat":37.6520278,"lon":127.33125,"addr":"","radius_m":800,"grade":"소형"},{"id":"S0430","region":"북부","city":"남양주시","name":"별내동행정복지센터","lat":37.6457528,"lon":127.1219667,"addr":"","radius_m":1000,"grade":"중형"},{"id":"S0431","region":"북부","city":"남양주시","name":"다산1동행정복지센터","lat":37.61391,"lon":127.1555368,"addr":"","radius_m":1000,"grade":"중형"},{"id":"S0432","region":"북부","city":"남양주시","name":"화도읍 창현리","lat":37.6355641,"lon":127.3099979,"addr":"","radius_m":1000,"grade":"중형"},{"id":"S0433","region":"북부","city":"남양주시","name":"진접읍 내각리","lat":37.705461,"lon":127.168294,"addr":"","radius_m":1000,"grade":"중형"},{"id":"S0434","region":"북부","city":"남양주시","name":"진건배수펌프장","lat":37.6333921,"lon":127.1510538,"addr":"","radius_m":800,"grade":"DMB"},{"id":"S0435","region":"북부","city":"남양주시","name":"스마트시티통합센터","lat":37.6648787,"lon":127.1185765,"addr":"","radius_m":1000,"grade":"중형"},{"id":"S0436","region":"북부","city":"의정부시","name":"의정부2동주민센터","lat":37.7407369,"lon":127.0429167,"addr":"","radius_m":1000,"grade":"중형"},{"id":"S0437","region":"북부","city":"의정부시","name":"호원1동주민센터","lat":37.7121389,"lon":127.048764,"addr":"","radius_m":1200,"grade":"대형"},{"id":"S0438","region":"북부","city":"의정부시","name":"호원2동행정복지센터","lat":37.7264578,"lon":127.0431222,"addr":"","radius_m":800,"grade":"소형"},{"id":"S0439","region":"북부","city":"의정부시","name":"장암동주민센터","lat":37.7263611,"lon":127.0542333,"addr":"","radius_m":1000,"grade":"중형"},{"id":"S0440","region":"북부","city":"의정부시","name":"신곡2동주민센터","lat":37.74375,"lon":127.0579011,"addr":"","radius_m":1200,"grade":"대형"},{"id":"S0441","region":"북부","city":"의정부시","name":"송산1동주민센터","lat":37.7311,"lon":127.0867333,"addr":"","radius_m":1000,"grade":"중형"},{"id":"S0442","region":"북부","city":"의정부시","name":"송산2동행정복지센터","lat":37.7396823,"lon":127.0899814,"addr":"","radius_m":1200,"grade":"대형"},{"id":"S0443","region":"북부","city":"의정부시","name":"자금동주민센터","lat":37.7504167,"lon":127.0581222,"addr":"","radius_m":1000,"grade":"중형"},{"id":"S0444","region":"북부","city":"의정부시","name":"가능1동주민센터","lat":37.7505528,"lon":127.0385028,"addr":"","radius_m":1200,"grade":"대형"},{"id":"S0445","region":"북부","city":"의정부시","name":"흥선동행정복지센터","lat":37.7462361,"lon":127.0306833,"addr":"","radius_m":1000,"grade":"중형"},{"id":"S0446","region":"북부","city":"의정부시","name":"녹양동주민센터","lat":37.7600954,"lon":127.0322921,"addr":"","radius_m":1200,"grade":"대형"},{"id":"S0447","region":"북부","city":"의정부시","name":"송산3동행정복지센터","lat":37.7533073,"lon":127.1136098,"addr":"","radius_m":1000,"grade":"중형"},{"id":"S0448","region":"북부","city":"파주시","name":"문산읍행정복지센터","lat":37.8568706,"lon":126.7911088,"addr":"","radius_m":1200,"grade":"대형"},{"id":"S0449","region":"북부","city":"파주시","name":"임진각대피시설","lat":37.8904478,"lon":126.7403761,"addr":"","radius_m":800,"grade":"소형"},{"id":"S0450","region":"북부","city":"파주시","name":"장산1리 마을회관","lat":37.8999956,"lon":126.7766589,"addr":"","radius_m":1000,"grade":"중형"},{"id":"S0451","region":"북부","city":"파주시","name":"조리읍행정복지센터","lat":37.7446647,"lon":126.8053861,"addr":"","radius_m":1200,"grade":"대형"},{"id":"S0452","region":"북부","city":"파주시","name":"봉일천4리 경로당","lat":37.739996,"lon":126.8219451,"addr":"","radius_m":1000,"grade":"중형"},{"id":"S0453","region":"북부","city":"파주시","name":"장곡1리 마을회관","lat":37.7542036,"lon":126.8387298,"addr":"","radius_m":1000,"grade":"중형"},{"id":"S0454","region":"북부","city":"파주시","name":"법원읍행정복지센터","lat":37.8492323,"lon":126.8823544,"addr":"","radius_m":1200,"grade":"대형"},{"id":"S0455","region":"북부","city":"파주시","name":"파주읍행정복지센터","lat":37.8306994,"lon":126.8197675,"addr":"","radius_m":1200,"grade":"대형"},{"id":"S0456","region":"북부","city":"파주시","name":"광탄면행정복지센터","lat":37.7761352,"lon":126.8513201,"addr":"","radius_m":1000,"grade":"중형"},{"id":"S0457","region":"북부","city":"파주시","name":"창만1리 마을회관","lat":37.8031081,"lon":126.8481382,"addr":"","radius_m":1000,"grade":"중형"},{"id":"S0458","region":"북부","city":"파주시","name":"영장3리 마을회관","lat":37.7718334,"lon":126.9012292,"addr":"","radius_m":1000,"grade":"중형"},{"id":"S0459","region":"북부","city":"파주시","name":"탄현면행정복지센터","lat":37.8025036,"lon":126.7159978,"addr":"","radius_m":1000,"grade":"중형"},{"id":"S0460","region":"북부","city":"파주시","name":"만우리노인정","lat":37.816075,"lon":126.6974528,"addr":"","radius_m":1000,"grade":"중형"},{"id":"S0461","region":"북부","city":"파주시","name":"월롱면행정복지센터","lat":37.7961305,"lon":126.7901893,"addr":"","radius_m":1000,"grade":"중형"},{"id":"S0462","region":"북부","city":"파주시","name":"적성면행정복지센터","lat":37.9542559,"lon":126.9176162,"addr":"","radius_m":1000,"grade":"중형"},{"id":"S0463","region":"북부","city":"파주시","name":"어유지 보건진료소","lat":37.9949214,"lon":126.9907692,"addr":"","radius_m":1000,"grade":"중형"},{"id":"S0464","region":"북부","city":"파주시","name":"식현2리마을회관","lat":37.9449583,"lon":126.882075,"addr":"","radius_m":1000,"grade":"중형"},{"id":"S0465","region":"북부","city":"파주시","name":"파평면행정복지센터","lat":37.9218974,"lon":126.837935,"addr":"","radius_m":1000,"grade":"중형"},{"id":"S0466","region":"북부","city":"파주시","name":"교하동행정복지센터","lat":37.7530105,"lon":126.7468959,"addr":"","radius_m":1000,"grade":"중형"},{"id":"S0467","region":"북부","city":"파주시","name":"하지석리노인정","lat":37.7598649,"lon":126.7482223,"addr":"","radius_m":1000,"grade":"중형"},{"id":"S0468","region":"북부","city":"파주시","name":"운정1동행정복지센터","lat":37.724264,"lon":126.7517731,"addr":"","radius_m":1000,"grade":"중형"},{"id":"S0469","region":"북부","city":"파주시","name":"경기인력개발원","lat":37.7141573,"lon":126.7443345,"addr":"","radius_m":1000,"grade":"중형"},{"id":"S0470","region":"북부","city":"파주시","name":"파주시청","lat":37.7601597,"lon":126.7797801,"addr":"","radius_m":1200,"grade":"대형"},{"id":"S0471","region":"북부","city":"파주시","name":"금촌1동행정복지센터","lat":37.7588179,"lon":126.7747073,"addr":"","radius_m":1200,"grade":"대형"},{"id":"S0472","region":"북부","city":"파주시","name":"금촌2동행정복지센터","lat":37.7516568,"lon":126.7772645,"addr":"","radius_m":1000,"grade":"중형"},{"id":"S0473","region":"북부","city":"파주시","name":"장단출장소","lat":37.9063619,"lon":126.7311115,"addr":"","radius_m":1000,"grade":"중형"},{"id":"S0474","region":"북부","city":"파주시","name":"객현1리산머루체험관","lat":37.9693008,"lon":126.9518903,"addr":"","radius_m":1000,"grade":"중형"},{"id":"S0475","region":"북부","city":"파주시","name":"동파리마을회관","lat":37.9259383,"lon":126.7871475,"addr":"","radius_m":1000,"grade":"중형"},{"id":"S0476","region":"북부","city":"파주시","name":"장현2리마을회관(난청지역)","lat":37.9788918,"lon":126.9701498,"addr":"","radius_m":1000,"grade":"중형"},{"id":"S0477","region":"북부","city":"파주시","name":"교하청소년문화의집","lat":37.7239669,"lon":126.7154368,"addr":"","radius_m":1000,"grade":"중형"},{"id":"S0478","region":"북부","city":"양주시","name":"백석읍행정복지센터","lat":37.7946833,"lon":126.9852243,"addr":"","radius_m":1250,"grade":"중형"},{"id":"S0479","region":"북부","city":"양주시","name":"기산하수처리장","lat":37.7773354,"lon":126.9383106,"addr":"","radius_m":1250,"grade":"중형"},{"id":"S0480","region":"북부","city":"양주시","name":"방성1리 마을회관","lat":37.8003907,"lon":126.9995859,"addr":"","radius_m":1250,"grade":"중형"},{"id":"S0481","region":"북부","city":"양주시","name":"홍죽2리마을회관","lat":37.8015992,"lon":126.9560736,"addr":"","radius_m":1250,"grade":"중형"},{"id":"S0482","region":"북부","city":"양주시","name":"복지1리마을회관","lat":37.785032,"lon":126.9905212,"addr":"","radius_m":800,"grade":"DMB"},{"id":"S0483","region":"북부","city":"양주시","name":"연곡1리 마을회관","lat":37.8109807,"lon":126.9596477,"addr":"","radius_m":800,"grade":"DMB"},{"id":"S0484","region":"북부","city":"양주시","name":"은현면행정복지센터","lat":37.8748643,"lon":127.0245073,"addr":"","radius_m":1250,"grade":"중형"},{"id":"S0485","region":"북부","city":"양주시","name":"용암1리마을회관","lat":37.8517255,"lon":127.0375903,"addr":"","radius_m":1250,"grade":"중형"},{"id":"S0486","region":"북부","city":"양주시","name":"봉암리 마을회관","lat":37.9080047,"lon":127.0079903,"addr":"","radius_m":800,"grade":"DMB"},{"id":"S0487","region":"북부","city":"양주시","name":"남면행정복지센터","lat":37.89764,"lon":126.9766352,"addr":"","radius_m":1250,"grade":"중형"},{"id":"S0488","region":"북부","city":"양주시","name":"검준사업단지","lat":37.8670445,"lon":126.9989192,"addr":"","radius_m":1250,"grade":"중형"},{"id":"S0489","region":"북부","city":"양주시","name":"황방1리마을회관","lat":37.9227377,"lon":126.9974119,"addr":"","radius_m":1250,"grade":"중형"},{"id":"S0490","region":"북부","city":"양주시","name":"광적면행정복지센터","lat":37.8245373,"lon":126.9836599,"addr":"","radius_m":1250,"grade":"중형"},{"id":"S0491","region":"북부","city":"양주시","name":"효촌2리 마을회관","lat":37.8614728,"lon":126.9477388,"addr":"","radius_m":1250,"grade":"중형"},{"id":"S0492","region":"북부","city":"양주시","name":"덕도3리경로당","lat":37.8461323,"lon":126.9668532,"addr":"","radius_m":999.9,"grade":"중형"},{"id":"S0493","region":"북부","city":"양주시","name":"장흥면행정복지센터","lat":37.7178456,"lon":126.941221,"addr":"","radius_m":1250,"grade":"중형"},{"id":"S0494","region":"북부","city":"양주시","name":"장흥작은도서관","lat":37.7137052,"lon":126.9693424,"addr":"","radius_m":1250,"grade":"중형"},{"id":"S0495","region":"북부","city":"양주시","name":"삼하리마을회관","lat":37.6780466,"lon":126.922811,"addr":"","radius_m":1250,"grade":"중형"},{"id":"S0496","region":"북부","city":"양주시","name":"양주시청","lat":37.7849605,"lon":127.045733,"addr":"","radius_m":1650,"grade":"대형"},{"id":"S0497","region":"북부","city":"양주시","name":"유양1통 마을회관","lat":37.7845617,"lon":127.027338,"addr":"","radius_m":1250,"grade":"중형"},{"id":"S0498","region":"북부","city":"양주시","name":"양주1동행정복지센터","lat":37.7731228,"lon":127.0439134,"addr":"","radius_m":1250,"grade":"중형"},{"id":"S0499","region":"북부","city":"양주시","name":"남방3통마을회관","lat":37.775401,"lon":127.0336774,"addr":"","radius_m":1000.5,"grade":"중형"},{"id":"S0500","region":"북부","city":"양주시","name":"양주2동행정복지센터","lat":37.7968329,"lon":127.0802965,"addr":"","radius_m":1250,"grade":"중형"},{"id":"S0501","region":"북부","city":"양주시","name":"양주자이프라자","lat":37.795924,"lon":127.105851,"addr":"","radius_m":1250,"grade":"중형"},{"id":"S0502","region":"북부","city":"양주시","name":"고읍119안전센터","lat":37.8017992,"lon":127.0698366,"addr":"","radius_m":1250,"grade":"중형"},{"id":"S0503","region":"북부","city":"양주시","name":"회천1동행정복지센터","lat":37.8438868,"lon":127.0660388,"addr":"","radius_m":1650,"grade":"대형"},{"id":"S0504","region":"북부","city":"양주시","name":"회천2동행정복지센터","lat":37.8223698,"lon":127.0477309,"addr":"","radius_m":1250,"grade":"중형"},{"id":"S0505","region":"북부","city":"양주시","name":"회정1통 마을회관","lat":37.8290839,"lon":127.0525312,"addr":"","radius_m":1250,"grade":"중형"},{"id":"S0506","region":"북부","city":"양주시","name":"회천3동행정복지센터","lat":37.8377264,"lon":127.0688847,"addr":"","radius_m":1250,"grade":"중형"},{"id":"S0507","region":"북부","city":"양주시","name":"회천4동행정복지센터","lat":37.8328388,"lon":127.0902953,"addr":"","radius_m":1250,"grade":"중형"},{"id":"S0508","region":"북부","city":"양주시","name":"옥정호수도서관","lat":37.8232269,"lon":127.0948656,"addr":"","radius_m":999.6,"grade":""},{"id":"S0509","region":"북부","city":"구리시","name":"시립동구어린이집","lat":37.6183886,"lon":127.1383948,"addr":"","radius_m":1200,"grade":"대형"},{"id":"S0510","region":"북부","city":"구리시","name":"구리시청","lat":37.5946151,"lon":127.1296727,"addr":"","radius_m":1200,"grade":"대형"},{"id":"S0511","region":"북부","city":"구리시","name":"토평정수장","lat":37.5807916,"lon":127.1470929,"addr":"","radius_m":1198.5,"grade":"대형"},{"id":"S0512","region":"북부","city":"구리시","name":"인창빗물펌프장","lat":37.6046443,"lon":127.1476463,"addr":"","radius_m":1000,"grade":"중형"},{"id":"S0513","region":"북부","city":"구리시","name":"갈매중앙공원","lat":37.631034,"lon":127.1188887,"addr":"","radius_m":1000,"grade":"중형"},{"id":"S0514","region":"북부","city":"포천시","name":"포천시청","lat":37.8947222,"lon":127.2002591,"addr":"","radius_m":1197.5,"grade":"대형"},{"id":"S0515","region":"북부","city":"포천시","name":"소홀읍사무소","lat":37.8232722,"lon":127.1385806,"addr":"","radius_m":1198.2,"grade":"복합"},{"id":"S0516","region":"북부","city":"포천시","name":"소홀도서관","lat":37.8296722,"lon":127.1376389,"addr":"","radius_m":998.6,"grade":"중형"},{"id":"S0517","region":"북부","city":"포천시","name":"군내면사무소","lat":37.889025,"lon":127.2178722,"addr":"","radius_m":998.1,"grade":"중형"},{"id":"S0518","region":"북부","city":"포천시","name":"내촌면사무소","lat":37.786,"lon":127.2288889,"addr":"","radius_m":998.1,"grade":"중형"},{"id":"S0519","region":"북부","city":"포천시","name":"내5리마을회관","lat":37.7951306,"lon":127.2305556,"addr":"","radius_m":999.4,"grade":"중형"},{"id":"S0520","region":"북부","city":"포천시","name":"신북면사무소","lat":37.9339889,"lon":127.22635,"addr":"","radius_m":998.3,"grade":"중형"},{"id":"S0521","region":"북부","city":"포천시","name":"포천중앙도서관","lat":37.9052778,"lon":127.2064722,"addr":"","radius_m":998.8,"grade":"중형"},{"id":"S0522","region":"북부","city":"포천시","name":"가산면사무소","lat":37.8486111,"lon":127.1863889,"addr":"","radius_m":998.3,"grade":"중형"},{"id":"S0523","region":"북부","city":"포천시","name":"창수면사무소","lat":37.9917167,"lon":127.1891,"addr":"","radius_m":998.8,"grade":"중형"},{"id":"S0524","region":"북부","city":"포천시","name":"영중면사무소","lat":38.0055556,"lon":127.2450944,"addr":"","radius_m":1001.4,"grade":"중형"},{"id":"S0525","region":"북부","city":"포천시","name":"영평리노인정","lat":38.0170778,"lon":127.2117389,"addr":"","radius_m":999.2,"grade":"중형"},{"id":"S0526","region":"북부","city":"포천시","name":"성동5리 마을회관","lat":38.0194028,"lon":127.2510056,"addr":"","radius_m":993.4,"grade":"중형"},{"id":"S0527","region":"북부","city":"포천시","name":"일동면사무소","lat":37.9613306,"lon":127.31725,"addr":"","radius_m":1003.4,"grade":"중형"},{"id":"S0528","region":"북부","city":"포천시","name":"일동디딤돌 학습센터","lat":37.9799194,"lon":127.3224639,"addr":"","radius_m":1001.9,"grade":"중형"},{"id":"S0529","region":"북부","city":"포천시","name":"이동면사무소","lat":38.0306611,"lon":127.3675722,"addr":"","radius_m":996.1,"grade":"중형"},{"id":"S0530","region":"북부","city":"포천시","name":"도평리보건진료소","lat":38.0590805,"lon":127.3843977,"addr":"","radius_m":1000.6,"grade":"중형"},{"id":"S0531","region":"북부","city":"포천시","name":"영북면사무소","lat":38.0893778,"lon":127.2751028,"addr":"","radius_m":998.9,"grade":"중형"},{"id":"S0532","region":"북부","city":"포천시","name":"산정리마을회관","lat":38.0686056,"lon":127.3236111,"addr":"","radius_m":999.1,"grade":"중형"},{"id":"S0533","region":"북부","city":"포천시","name":"관인면사무소","lat":38.1577778,"lon":127.2511694,"addr":"","radius_m":998.6,"grade":"중형"},{"id":"S0534","region":"북부","city":"포천시","name":"중3리마을회관","lat":38.0861472,"lon":127.2065361,"addr":"","radius_m":1000.3,"grade":"중형"},{"id":"S0535","region":"북부","city":"포천시","name":"냉정1리회관","lat":38.1669753,"lon":127.2735583,"addr":"","radius_m":999.3,"grade":"중형"},{"id":"S0536","region":"북부","city":"포천시","name":"화현면사무소","lat":37.9011639,"lon":127.2881667,"addr":"","radius_m":1000.6,"grade":"중형"},{"id":"S0537","region":"북부","city":"포천시","name":"선단동사무소","lat":37.8541667,"lon":127.1591667,"addr":"","radius_m":994.8,"grade":"중형"},{"id":"S0538","region":"북부","city":"포천시","name":"심곡1리작은도서관","lat":37.9417791,"lon":127.185952,"addr":"","radius_m":1000,"grade":"중형"},{"id":"S0539","region":"북부","city":"동두천시","name":"동두천시청","lat":37.9034921,"lon":127.0599354,"addr":"","radius_m":1199.6,"grade":"대형"},{"id":"S0540","region":"북부","city":"동두천시","name":"보산동행정복지센터","lat":37.917695,"lon":127.0613603,"addr":"","radius_m":1001,"grade":"중형"},{"id":"S0541","region":"북부","city":"동두천시","name":"불현동행정복지센터","lat":37.8986338,"lon":127.0624592,"addr":"","radius_m":999.7,"grade":"중형"},{"id":"S0542","region":"북부","city":"동두천시","name":"불현동 중앙고교","lat":37.8916379,"lon":127.0575824,"addr":"","radius_m":1200,"grade":"대형"},{"id":"S0543","region":"북부","city":"동두천시","name":"광암동다목적회관","lat":37.8938186,"lon":127.0891529,"addr":"","radius_m":997.7,"grade":"중형"},{"id":"S0544","region":"북부","city":"동두천시","name":"소요동행정복지센터","lat":37.9294759,"lon":127.0572311,"addr":"","radius_m":1200.6,"grade":"대형"},{"id":"S0545","region":"북부","city":"동두천시","name":"동두천환경사업소","lat":37.9455844,"lon":127.0570856,"addr":"","radius_m":1001.6,"grade":"중형"},{"id":"S0546","region":"북부","city":"동두천시","name":"상패동행정복지센터","lat":37.9054929,"lon":127.0443259,"addr":"","radius_m":999.1,"grade":"중형"},{"id":"S0547","region":"북부","city":"동두천시","name":"상패8통 마을회관","lat":37.9022809,"lon":127.0255609,"addr":"","radius_m":998.6,"grade":"중형"},{"id":"S0548","region":"북부","city":"가평군","name":"가평군청","lat":37.8312549,"lon":127.5095764,"addr":"","radius_m":1072.2,"grade":"대형"},{"id":"S0549","region":"북부","city":"가평군","name":"승안2리마을회관","lat":37.8480096,"lon":127.4876617,"addr":"","radius_m":900.3,"grade":"소형"},{"id":"S0550","region":"북부","city":"가평군","name":"달전1리마을회관","lat":37.8111859,"lon":127.5199601,"addr":"","radius_m":1000.1,"grade":"중형"},{"id":"S0551","region":"북부","city":"가평군","name":"설악면사무소","lat":37.676148,"lon":127.4947225,"addr":"","radius_m":900.4,"grade":"소형"},{"id":"S0552","region":"북부","city":"가평군","name":"가일1리마을회관","lat":37.5999524,"lon":127.4930418,"addr":"","radius_m":899,"grade":"소형"},{"id":"S0553","region":"북부","city":"가평군","name":"청평면사무소","lat":37.7404105,"lon":127.4241432,"addr":"","radius_m":898.8,"grade":"소형"},{"id":"S0554","region":"북부","city":"가평군","name":"대성3리마을회관","lat":37.6805288,"lon":127.3768354,"addr":"","radius_m":898.5,"grade":"소형"},{"id":"S0555","region":"북부","city":"가평군","name":"상면사무소","lat":37.8048458,"lon":127.3567035,"addr":"","radius_m":899.7,"grade":"소형"},{"id":"S0556","region":"북부","city":"가평군","name":"덕현리 마을회관","lat":37.7625282,"lon":127.3940152,"addr":"","radius_m":899.1,"grade":"소형"},{"id":"S0557","region":"북부","city":"가평군","name":"조종면사무소","lat":37.8173682,"lon":127.3531539,"addr":"","radius_m":898.9,"grade":"소형"},{"id":"S0558","region":"북부","city":"가평군","name":"운악리경로당","lat":37.8650883,"lon":127.3493136,"addr":"","radius_m":898,"grade":"소형"},{"id":"S0559","region":"북부","city":"가평군","name":"북면사무소","lat":37.8855895,"lon":127.5502378,"addr":"","radius_m":899.2,"grade":"소형"},{"id":"S0560","region":"북부","city":"가평군","name":"도대1리마을회관","lat":37.9243337,"lon":127.4940755,"addr":"","radius_m":898.3,"grade":"소형"},{"id":"S0561","region":"북부","city":"연천군","name":"연천군청","lat":38.0967538,"lon":127.0746162,"addr":"","radius_m":1198.4,"grade":"대형"},{"id":"S0562","region":"북부","city":"연천군","name":"전곡읍행정복지센터","lat":38.027952,"lon":127.0636146,"addr":"","radius_m":1192.9,"grade":"대형"},{"id":"S0563","region":"북부","city":"연천군","name":"군남면행정복지센터","lat":38.0851942,"lon":127.0188951,"addr":"","radius_m":997.8,"grade":"중형"},{"id":"S0564","region":"북부","city":"연천군","name":"청산면행정복지센터","lat":37.9818468,"lon":127.0676989,"addr":"","radius_m":994.8,"grade":"중형"},{"id":"S0565","region":"북부","city":"연천군","name":"백학면행정복지센터","lat":38.0296519,"lon":126.9180051,"addr":"","radius_m":994.3,"grade":"중형"},{"id":"S0566","region":"북부","city":"연천군","name":"미산면행정복지센터","lat":38.047365,"lon":126.992871,"addr":"","radius_m":1004.8,"grade":"중형"},{"id":"S0567","region":"북부","city":"연천군","name":"왕징면행정복지센터","lat":38.0585307,"lon":127.0127297,"addr":"","radius_m":1002.3,"grade":"중형"},{"id":"S0568","region":"북부","city":"연천군","name":"신서면행정복지센터","lat":38.1832686,"lon":127.1068705,"addr":"","radius_m":1001.4,"grade":"중형"},{"id":"S0569","region":"북부","city":"연천군","name":"중면행정복지센터","lat":38.1358818,"lon":127.0191797,"addr":"","radius_m":998.8,"grade":"중형"},{"id":"S0570","region":"북부","city":"연천군","name":"연강갤러리","lat":38.1178643,"lon":126.9871954,"addr":"","radius_m":999.7,"grade":"중형"},{"id":"S0571","region":"북부","city":"연천군","name":"장남면행정복지센터","lat":37.9818155,"lon":126.8842447,"addr":"","radius_m":1004.8,"grade":"중형"},{"id":"S0572","region":"북부","city":"연천군","name":"상1리다목적회관","lat":38.1348533,"lon":127.0784262,"addr":"","radius_m":1600,"grade":"중형"}];
+</script>
+<script>
+// ── LOGIN GATE ─────────────────────────────────────────────────────────
+// 실제 비밀번호는 서버 .env의 UI_PASSWORD에 저장됩니다.
+async function checkPassword(pw = '') {
+  const url = '/api/auth_check' + (pw ? ('?pw=' + encodeURIComponent(pw)) : '');
+  try {
+    const r = await fetch(url);
+    const j = await r.json();
+    return !!j.ok;
+  } catch (e) {
+    return false;
+  }
+}
+async function doLogin() {
+  const val = document.getElementById('pw-input').value;
+  if (await checkPassword(val)) {
+    sessionStorage.setItem('gdaps_auth', '1');
+    document.getElementById('login-gate').style.display = 'none';
+  } else {
+    const err = document.getElementById('pw-error');
+    err.textContent = '비밀번호가 올바르지 않습니다.';
+    document.getElementById('pw-input').value = '';
+    document.getElementById('pw-input').focus();
+    setTimeout(() => { err.textContent = ''; }, 3000);
+  }
+}
+// 이미 로그인됐거나 서버에서 UI_PASSWORD를 비워둔 경우 통과
+(async () => {
+  if (sessionStorage.getItem('gdaps_auth') === '1' || await checkPassword('')) {
+    sessionStorage.setItem('gdaps_auth', '1');
+    document.getElementById('login-gate').style.display = 'none';
+  }
+})();
+
+// ── MAP SETUP ──────────────────────────────────────────────────────────
+const TILES = {
+  dark:     { url: 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',    attr: '© OpenStreetMap © CARTO', sub: 'abcd' },
+  positron: { url: 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png',   attr: '© OpenStreetMap © CARTO', sub: 'abcd' },
+  osm:      { url: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',                   attr: '© OpenStreetMap contributors', sub: '' },
+  topo:     { url: 'https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png',                 attr: '© OpenStreetMap contributors, © OpenTopoMap', sub: 'abc' },
+};
+
+let currentTile = 'dark';
+let tileLayer;
+
+const map = L.map('map', {
+  center: [37.7476, 127.0719],
+  zoom: 11,
+  zoomControl: true,
+  attributionControl: true,
+  doubleClickZoom: false, // 시연용 3회 클릭 시 더블클릭 확대 방지
+});
+map.doubleClickZoom.disable();
+
+function setTile(key) {
+  if (tileLayer) map.removeLayer(tileLayer);
+  const t = TILES[key];
+  const opts = { attribution: t.attr, maxZoom: 19 };
+  if (t.sub) opts.subdomains = t.sub;
+  tileLayer = L.tileLayer(t.url, opts);
+  tileLayer.addTo(map);
+  currentTile = key;
+}
+setTile('osm');
+
+// ── STATE ──────────────────────────────────────────────────────────────
+const state = {
+  lat: 37.747575, lon: 127.071862,
+  wd: 90, ws: 5.0, temp: 0.0, rh: 0.0,
+  h: 3, steps: 6,
+  frame: 1, totalFrames: 6,
+  playing: false, intervalId: null, speed: 900,
+  showFire: true, showFacility: true, showCircle: true,
+  selectedFacilityId: null,
+  demoClickMode: false,
+  demoPoints: [],
+  demoLabel: '',
+  fireColor: 'orange',
+  maxSites: 30,
+  warningRadiusKm: 30,
+};
+
+// ── WIND DIR HELPER ────────────────────────────────────────────────────
+const WIND_DIRS = ['북풍','북북동풍','북동풍','동북동풍','동풍','동남동풍','남동풍','남남동풍',
+                   '남풍','남남서풍','남서풍','서남서풍','서풍','서북서풍','북서풍','북북서풍'];
+function windDir(deg) {
+  return WIND_DIRS[Math.round((deg % 360) / 22.5) % 16];
+}
+function fmtDist(m) {
+  m = parseFloat(m);
+  if (isNaN(m)) return '—';
+  return m >= 1000 ? (m/1000).toFixed(2)+' km' : m.toFixed(0)+' m';
+}
+
+// ── MOCK FIRE LAYERS ───────────────────────────────────────────────────
+function haversineKm(lat1,lon1,lat2,lon2){
+  const R=6371,dLat=(lat2-lat1)*Math.PI/180,dLon=(lon2-lon1)*Math.PI/180;
+  const a=Math.sin(dLat/2)**2+Math.cos(lat1*Math.PI/180)*Math.cos(lat2*Math.PI/180)*Math.sin(dLon/2)**2;
+  return 2*R*Math.asin(Math.sqrt(a));
+}
+function destPoint(lat,lon,bearingDeg,distKm){
+  const R=6371,d=distKm/R,br=bearingDeg*Math.PI/180;
+  const lat1=lat*Math.PI/180,lon1=lon*Math.PI/180;
+  const lat2=Math.asin(Math.sin(lat1)*Math.cos(d)+Math.cos(lat1)*Math.sin(d)*Math.cos(br));
+  const lon2=lon1+Math.atan2(Math.sin(br)*Math.sin(d)*Math.cos(lat1),Math.cos(d)-Math.sin(lat1)*Math.sin(lat2));
+  return [lat2*180/Math.PI, lon2*180/Math.PI];
+}
+
+// ── TEARDROP POLYGON (ported from engine.py) ──────────────────────────
+function kmToDeg(latC, dxKm, dyKm) {
+  const dlat = dyKm / 111.0;
+  const dlon = dxKm / (111.0 * Math.cos(latC * Math.PI / 180) + 1e-9);
+  return [dlat, dlon];
+}
+
+function teardropPolygon(latC, lonC, majorKm, minorKm, bearingDeg, skew=0.65, upwindShrink=0.55, n=80) {
+  const th = bearingDeg * Math.PI / 180;
+  const ux = Math.sin(th), uy = Math.cos(th);
+  const px = -uy, py = ux;
+  const pts = [];
+  for (let i = 0; i < n; i++) {
+    const a = 2 * Math.PI * i / n;
+    let xu = majorKm * Math.cos(a);
+    const yv = minorKm * Math.sin(a);
+    const f = xu / (majorKm + 1e-9);
+    let sc;
+    if (f >= 0) { sc = 1.0 + skew * Math.pow(f, 1.3); }
+    else        { sc = 1.0 - (1.0 - upwindShrink) * Math.pow(-f, 1.1); }
+    const xu2 = xu * sc;
+    const yv2 = yv * (0.9 + 0.1 * sc);
+    const dx = xu2*ux + yv2*px;
+    const dy = xu2*uy + yv2*py;
+    const [dlat, dlon] = kmToDeg(latC, dx, dy);
+    pts.push([latC + dlat, lonC + dlon]);
+  }
+  pts.push(pts[0]); // close
+  return pts;
+}
+
+function computeFireLayers(lat, lon, wdInput, wsMs, h, steps, driftCoef=0.35) {
+  // wd_input is FROM direction (meteorological), convert to TO
+  const wdTo = (wdInput + 180) % 360;
+  const dt = h / steps;
+  const layers = [];
+  for (let i = 1; i <= steps; i++) {
+    const hour = dt * i;
+    const majorKm = Math.max(0.4, (wsMs * 3.6) * hour * 0.42);
+    const minorKm = Math.max(0.25, majorKm * 0.40);
+    const driftKm = Math.max(0.0, (wsMs * 3.6) * hour * driftCoef);
+    const [cLat, cLon] = driftKm > 0 ? destPoint(lat, lon, wdTo, driftKm) : [lat, lon];
+    const poly = teardropPolygon(cLat, cLon, majorKm, minorKm, wdTo);
+    layers.push({ i, hour, cLat, cLon, poly, majorKm, minorKm, wdTo, driftKm });
+  }
+  return layers;
+}
+
+// Legacy wrapper for wind arrow
+function computeFireEllipse(lat,lon,wdDeg,wsMs,hourFrac) {
+  const layers = computeFireLayers(lat,lon,wdDeg,wsMs,hourFrac,1,0.35);
+  return layers[0]?.poly || [];
+}
+
+// ── LAYERS ON MAP ──────────────────────────────────────────────────────
+// Canvas renderer for performance with many markers
+const canvasRenderer = L.canvas({ padding: 0.5 });
+let ignitionMarker = null;
+let fireLayersGroup = L.layerGroup().addTo(map);
+let facilityGroup = L.layerGroup().addTo(map);
+let circleGroup = L.layerGroup().addTo(map);
+let windArrow = null;
+let demoClickGroup = L.layerGroup().addTo(map);
+
+const FIRE_COLORS = {
+  orange: {stroke:'#ff5c2b', fill:'#ff5c2b'},
+  red: {stroke:'#ff1744', fill:'#ff1744'},
+  yellow: {stroke:'#ffab00', fill:'#ffab00'},
+};
+
+function drawIgnitionMarker() {
+  if (ignitionMarker) map.removeLayer(ignitionMarker);
+  ignitionMarker = L.circleMarker([state.lat, state.lon], {
+    radius: 10, color: '#4ec9b0', weight: 3,
+    fillColor: '#4ec9b0', fillOpacity: 0.9,
+  }).bindTooltip('🔥 발화점', {permanent: false, direction: 'top'}).addTo(map);
+  ignitionMarker.on('click', () => {
+    document.getElementById('fire-popup').style.display = 'flex';
+    document.getElementById('fire-popup').style.flexDirection = 'column';
+  });
+}
+drawIgnitionMarker();
+
+function drawFireLayers() {
+  fireLayersGroup.clearLayers();
+  if (!state.showFire) return;
+  const fc = FIRE_COLORS[state.fireColor] || FIRE_COLORS.orange;
+  const allLayers = computeFireLayers(state.lat, state.lon, state.wd, state.ws, state.h, state.totalFrames);
+  for (let i = 0; i < state.frame; i++) {
+    const layer = allLayers[i];
+    if (!layer) continue;
+    const isCurrent = (i === state.frame - 1);
+    const opacity = isCurrent ? 0.32 : Math.max(0.04, 0.15 - 0.015*(state.frame-1-i));
+    const mins = Math.round(layer.hour * 60);
+    L.polygon(layer.poly, {
+      color: fc.stroke, weight: isCurrent ? 2.5 : 1,
+      fillColor: fc.fill, fillOpacity: opacity,
+      opacity: isCurrent ? 0.95 : 0.35,
+      smoothFactor: 1.5,
+    }).bindTooltip(`🔥 ${mins}분 후 · 장축 ${layer.majorKm.toFixed(1)}km`, {direction:'center'})
+      .addTo(fireLayersGroup);
+  }
+  // Update popup info
+  const cur = allLayers[state.frame - 1];
+  if (cur) {
+    const mins = Math.round(cur.hour * 60);
+    document.getElementById('fp-time').textContent = `${mins}분`;
+    document.getElementById('fp-dist').textContent = `~${cur.majorKm.toFixed(1)}km`;
+    document.getElementById('fp-frame').textContent = `${state.frame} / ${state.totalFrames}`;
+  }
+}
+drawFireLayers();
+
+function drawWindArrow() {
+  if (windArrow) map.removeLayer(windArrow);
+  const windTo = (state.wd + 180) % 360;
+  const km = Math.max(1, Math.min(8, state.ws * 0.6));
+  const [lat2,lon2] = destPoint(state.lat, state.lon, windTo, km);
+  windArrow = L.polyline([[state.lat,state.lon],[lat2,lon2]], {
+    color: '#3d9aff', weight: 3, opacity: 0.7, dashArray: '6,4',
+  }).bindTooltip(`풍향: ${windDir(state.wd)} (${state.wd.toFixed(0)}°) ${state.ws.toFixed(1)}m/s`, {direction:'top'})
+    .addTo(map);
+}
+drawWindArrow();
+
+// ── FACILITIES (실제 데이터 572개 — sites_data.js) ────────────────────
+function haversineM(lat1,lon1,lat2,lon2){ return haversineKm(lat1,lon1,lat2,lon2)*1000; }
+
+function enrichFacilities(){
+  const src = (typeof SITES_DATA !== 'undefined') ? SITES_DATA : [];
+  return src.map(s=>{
+    const d = haversineM(state.lat,state.lon,s.lat,s.lon);
+    const gap = d - (parseFloat(s.radius_m)||1000);
+    return {...s, distance_m:d, covered:gap<=0, gap_m:gap};
+  }).sort((a,b)=>a.distance_m-b.distance_m);
+}
+
+function drawFacilities(){
+  facilityGroup.clearLayers();
+  circleGroup.clearLayers();
+  const all = enrichFacilities();
+  // 전체 표시 (반경 필터 없음)
+  const visible = all;
+
+  visible.forEach(s=>{
+    const covered = s.covered;
+    // 피해범위 내(파랑) vs 범위 밖(보라) 구분
+    const col = covered ? '#3d9aff' : '#9b59b6';
+    const isSel = s.id === state.selectedFacilityId;
+    if (state.showFacility) {
+      L.circleMarker([s.lat,s.lon], {
+        radius: isSel ? 10 : covered ? 7 : 5,
+        color: col, weight: isSel ? 3 : covered ? 2 : 1,
+        fillColor: col, fillOpacity: covered ? 0.95 : 0.7,
+        renderer: canvasRenderer,
+      }).bindTooltip(`${s.name} / ${fmtDist(s.distance_m)} / ${covered?'⚠ 피해범위 내':'✓ 범위 밖'}`, {direction:'top'})
+        .on('click',()=>openFacilityPopup(s))
+        .addTo(facilityGroup);
+    }
+    if (state.showCircle) {
+      L.circle([s.lat,s.lon], {
+        radius: parseFloat(s.radius_m)||1000,
+        color: col, weight: isSel ? 2.5 : covered ? 1.5 : 1,
+        fill: true,
+        fillOpacity: isSel ? 0.14 : covered ? 0.09 : 0.04,
+        opacity: isSel ? 0.9 : covered ? 0.7 : 0.35,
+        renderer: canvasRenderer,
+      }).bindTooltip(`${s.name} 가청반경 ${fmtDist(s.radius_m)}`, {direction:'center'})
+        .addTo(circleGroup);
+    }
+  });
+  // 우측 패널 - 항상 전체 기준 가장 가까운 5개
+  renderFacilityList(all.slice(0, 5));
+  // 표시 현황 업데이트
+  const countEl = document.getElementById('facility-count');
+  if(countEl) countEl.textContent = `전체 ${all.length}개 경보시설 표시 중`;
+}
+drawFacilities();
+
+function renderFacilityList(sites){
+  const el = document.getElementById('facility-list');
+  if(!sites.length){ el.innerHTML='<div style="font-size:11px;color:var(--text-dim);text-align:center;padding:8px 0;">경보시설 없음</div>'; return; }
+  el.innerHTML = sites.map((s,i)=>{
+    const covered = s.covered;
+    const isSel = s.id === state.selectedFacilityId;
+    return `<div class="facility-item${isSel?' selected':''}" onclick="selectFacility('${s.id}')">
+      <div class="facility-badge ${covered?'badge-danger':'badge-safe'}">${i+1}</div>
+      <div class="facility-info">
+        <div class="facility-name">${s.name}</div>
+        <div class="facility-meta">${s.city} · 가청반경 ${fmtDist(s.radius_m)}</div>
+        <div class="facility-meta" style="color:${covered?'var(--accent-danger)':'var(--accent-green)'};">${covered?'⚠️ 피해범위 내':'✅ 피해범위 밖'}</div>
+      </div>
+      <div class="facility-dist">${fmtDist(s.distance_m)}</div>
+    </div>`;
+  }).join('');
+}
+
+function selectFacility(id){
+  state.selectedFacilityId = (state.selectedFacilityId===id) ? null : id;
+  drawFacilities();
+  const sites = enrichFacilities();
+  const s = sites.find(x=>x.id===id);
+  if(s && state.selectedFacilityId===id) openFacilityPopup(s);
+}
+
+function openFacilityPopup(s){
+  document.getElementById('fac-popup-name').textContent = s.name;
+  const covered = s.covered;
+  const statusEl = document.getElementById('fac-popup-status');
+  statusEl.textContent = covered ? '⚠️ 피해범위 내' : '✅ 피해범위 밖';
+  statusEl.className = 'fac-status ' + (covered?'fac-danger':'fac-safe');
+  document.getElementById('fac-popup-city').textContent = s.city;
+  document.getElementById('fac-popup-dist').textContent = fmtDist(s.distance_m);
+  document.getElementById('fac-popup-radius').textContent = fmtDist(s.radius_m);
+  document.getElementById('fac-popup-gap').textContent = covered ? '피해범위 내부' : fmtDist(Math.abs(s.gap_m));
+  document.getElementById('facility-popup').style.display = 'block';
+}
+function closeFacilityPopup(){
+  document.getElementById('facility-popup').style.display = 'none';
+}
+
+
+// ── DEMO IGNITION SELECTION ─────────────────────────────────────────────
+const DEMO_PLACES = [
+  {name:'경기도청 북부청사', lat:37.747575, lon:127.071862, aliases:['북부청사','의정부 북부청사']},
+  {name:'경기도청 광교청사', lat:37.289153, lon:127.053442, aliases:['경기도청','광교청사']},
+  {name:'수원시청', lat:37.263406, lon:127.028584, aliases:['수원']},
+  {name:'포천시청', lat:37.894914, lon:127.200352, aliases:['포천']},
+  {name:'가평군청', lat:37.831509, lon:127.509541, aliases:['가평']},
+  {name:'연천군청', lat:38.096435, lon:127.074755, aliases:['연천']},
+  {name:'파주시청', lat:37.759925, lon:126.779939, aliases:['파주']},
+  {name:'김포시청', lat:37.615246, lon:126.715632, aliases:['김포']},
+  {name:'양평군청', lat:37.491789, lon:127.487637, aliases:['양평']},
+  {name:'남양주시청', lat:37.636002, lon:127.216528, aliases:['남양주']},
+  {name:'용인시청', lat:37.241086, lon:127.177553, aliases:['용인']},
+];
+function normText(s){ return String(s||'').toLowerCase().replace(/\s+/g,''); }
+function setIgnitionPoint(lat, lon, label='시연 발화점'){
+  state.lat = parseFloat(lat); state.lon = parseFloat(lon); state.demoLabel = label;
+  document.getElementById('inp-lat').value = state.lat.toFixed(6);
+  document.getElementById('inp-lon').value = state.lon.toFixed(6);
+  map.flyTo([state.lat, state.lon], 13, {duration: 0.8});
+  refreshAll();
+  setApiStatus(`📍 발화점 설정: ${label}`, 'var(--accent-green)');
+}
+async function selectDemoPlace(){
+  const q = document.getElementById('inp-demo-place').value.trim();
+  if(!q){ setApiStatus('⚠ 지명 또는 시설명을 입력하세요.', 'var(--accent-warn)'); return; }
+  const nq = normText(q);
+  const built = DEMO_PLACES.find(p => normText(p.name).includes(nq) || (p.aliases||[]).some(a => normText(a).includes(nq) || nq.includes(normText(a))));
+  if(built){ setIgnitionPoint(built.lat, built.lon, built.name); return; }
+  const src = (typeof SITES_DATA !== 'undefined') ? SITES_DATA : [];
+  const site = src.find(s => normText([s.city,s.name,s.address].join(' ')).includes(nq));
+  if(site){ setIgnitionPoint(site.lat, site.lon, `${site.city||''} ${site.name||'경보시설'}`.trim()); return; }
+  try{
+    const res = await fetchApi(`/place_search?q=${encodeURIComponent(q)}`, 12000);
+    if(res && !res.error){ setIgnitionPoint(res.lat, res.lon, res.label || q); return; }
+  }catch(e){}
+  setApiStatus('⚠ 지명 검색 결과가 없습니다. 주요 시군청명 또는 경보시설명을 입력해 주세요.', 'var(--accent-danger)');
+}
+function drawDemoClickPoints(){
+  demoClickGroup.clearLayers();
+  state.demoPoints.forEach((p, i)=>{
+    L.circleMarker([p.lat, p.lon], {radius:7, color:'#ff5c2b', weight:2, fillColor:'#ff5c2b', fillOpacity:0.9})
+      .bindTooltip(`시연 클릭 ${i+1}/3`, {permanent:true, direction:'top'})
+      .addTo(demoClickGroup);
+  });
+  if(state.demoPoints.length >= 2){
+    L.polyline(state.demoPoints.map(p=>[p.lat,p.lon]), {color:'#ff5c2b', weight:2, dashArray:'4,4', opacity:0.8}).addTo(demoClickGroup);
+  }
+}
+function updateDemoClickStatus(){
+  const btn = document.getElementById('demo-click-btn');
+  const status = document.getElementById('demo-click-status');
+  if(!btn || !status) return;
+  btn.innerHTML = state.demoClickMode ? '<span>🖱</span> 지도 3회 클릭 설정 ON' : '<span>🖱</span> 지도 3회 클릭 설정 OFF';
+  btn.style.background = state.demoClickMode ? 'rgba(255,92,43,0.28)' : 'rgba(61,154,255,0.22)';
+  status.textContent = state.demoClickMode ? `지도에서 후보지 ${state.demoPoints.length}/3회 클릭 중` : '시연 지점 선택 대기 · 버튼 ON 상태에서만 발화점 변경';
+  if (map && map.getContainer) {
+    map.getContainer().style.cursor = state.demoClickMode ? 'crosshair' : '';
+  }
+}
+function toggleDemoClickMode(){
+  state.demoClickMode = !state.demoClickMode;
+  state.demoPoints = [];
+  drawDemoClickPoints();
+  updateDemoClickStatus();
+}
+function handleDemoMapClick(latlng){
+  state.demoPoints.push({lat:latlng.lat, lon:latlng.lng});
+  if(state.demoPoints.length >= 3){
+    const pts = state.demoPoints.slice(0,3);
+    const lat = pts.reduce((a,p)=>a+p.lat,0)/3;
+    const lon = pts.reduce((a,p)=>a+p.lon,0)/3;
+    state.demoPoints = [];
+    state.demoClickMode = false;
+    drawDemoClickPoints();
+    updateDemoClickStatus();
+    setIgnitionPoint(lat, lon, '지도 3회 클릭 중심점');
+  } else {
+    drawDemoClickPoints();
+    updateDemoClickStatus();
+  }
+}
+
+// ── MAP CLICK → 경보시설 선택/시연 발화점 선택 ────────────────
+map.on('click', function(e){
+  if(state.demoClickMode){
+    if(e.originalEvent) L.DomEvent.stop(e.originalEvent);
+    handleDemoMapClick(e.latlng);
+    return;
+  }
+  // 평상시에는 발화점이 임의로 이동되지 않도록 잠금.
+  // 경보시설 근처 클릭 시에만 시설 선택을 허용.
+  const fac = enrichFacilities();
+  const nearby = fac.find(s => haversineM(e.latlng.lat,e.latlng.lng,s.lat,s.lon) < 300);
+  if(nearby){ selectFacility(nearby.id); return; }
+});
+
+map.on('dblclick', function(e){
+  // 3회 클릭 시연 중 더블클릭 확대 방지. 평상시에도 발화점 변경 없음.
+  if(e.originalEvent) L.DomEvent.stop(e.originalEvent);
+  return false;
+});
+
+map.on('mousemove', function(e){
+  document.getElementById('coord-display').textContent =
+    `${e.latlng.lat.toFixed(4)}°N, ${e.latlng.lng.toFixed(4)}°E`;
+});
+
+// ── ANIMATION ──────────────────────────────────────────────────────────
+function updateFrameUI(){
+  const pct = ((state.frame-1)/(state.totalFrames-1||1))*100;
+  document.getElementById('frame-slider').value = state.frame;
+  document.getElementById('frame-slider').max = state.totalFrames;
+  document.getElementById('frame-label').textContent = `${state.frame} / ${state.totalFrames}`;
+  document.getElementById('spread-fill').style.width = pct+'%';
+  document.getElementById('frame-status').textContent = `프레임 ${state.frame} / ${state.totalFrames}`;
+  const mins = Math.round((state.frame/state.totalFrames)*state.h*60);
+  document.getElementById('time-status').textContent = `+${mins}분`;
+  document.getElementById('fp-frame').textContent = `${state.frame} / ${state.totalFrames}`;
+  document.getElementById('fp-time').textContent = `${mins}분`;
+  document.getElementById('fp-dist').textContent = `~${(state.ws*0.22*(mins/60)).toFixed(1)}km`;
+}
+
+function toggleAnimation(){
+  state.playing = !state.playing;
+  const btn = document.getElementById('play-btn');
+  const topBtn = document.getElementById('anim-topbtn');
+  if(state.playing){
+    btn.textContent = '⏸ 정지';
+    btn.classList.add('active');
+    topBtn.textContent = '⏸ 정지';
+    document.getElementById('fire-popup').style.display = 'flex';
+    document.getElementById('fire-popup').style.flexDirection = 'column';
+    state.intervalId = setInterval(()=>{
+      state.frame = (state.frame % state.totalFrames) + 1;
+      drawFireLayers();
+      updateFrameUI();
+    }, state.speed);
+  } else {
+    btn.textContent = '▶ 재생';
+    btn.classList.remove('active');
+    topBtn.textContent = '▶ 재생';
+    clearInterval(state.intervalId);
+  }
+}
+
+function resetFrame(){
+  if(state.playing){ toggleAnimation(); }
+  state.frame = 1;
+  drawFireLayers();
+  updateFrameUI();
+}
+
+function onFrameSlider(v){
+  state.frame = parseInt(v);
+  if(state.playing){ clearInterval(state.intervalId); state.playing=false; }
+  document.getElementById('play-btn').textContent='▶ 재생';
+  document.getElementById('play-btn').classList.remove('active');
+  drawFireLayers();
+  updateFrameUI();
+}
+
+function onSpeedSlider(v){
+  state.speed = parseInt(v);
+  document.getElementById('speed-label').textContent = v+'ms';
+  if(state.playing){ clearInterval(state.intervalId); state.intervalId=setInterval(()=>{
+    state.frame=(state.frame%state.totalFrames)+1;
+    drawFireLayers(); updateFrameUI();
+  }, state.speed); }
+}
+
+// ── LAYER TOGGLES ──────────────────────────────────────────────────────
+function onRadiusSlider(v){
+  state.warningRadiusKm = parseInt(v);
+  document.getElementById('radius-label').textContent = v+'km';
+  drawFacilities();
+}
+function toggleFireLayer(){ state.showFire=document.getElementById('tog-fire').checked; drawFireLayers(); }
+function toggleFacilityLayer(){ state.showFacility=document.getElementById('tog-facility').checked; drawFacilities(); }
+function toggleCircleLayer(){ state.showCircle=document.getElementById('tog-circle').checked; drawFacilities(); }
+
+function changeTile(){
+  const v = document.getElementById('tile-select').value;
+  setTile(v);
+}
+function changeTileFromTweaks(v){ setTile(v); }
+
+function setPanelOpacity(v){
+  document.documentElement.style.setProperty('--bg-glass', `rgba(10,14,22,${v/100})`);
+}
+
+function setFireColor(v){
+  state.fireColor = v;
+  drawFireLayers();
+}
+
+function maxSitesChanged(v){
+  state.maxSites = parseInt(v)||30;
+  drawFacilities();
+}
+
+// ── PANEL COLLAPSE ─────────────────────────────────────────────────────
+function toggleCard(id){
+  const el = document.getElementById('card-'+id);
+  if(el) el.classList.toggle('collapsed');
+}
+
+// ── API HELPERS ────────────────────────────────────────────────────────
+// nginx가 /api/* → 127.0.0.1:5000/* 로 프록시하므로 상대경로 사용
+// (Mixed Content 오류 없음, 별도 CORS 설정 불필요)
+function apiBase() {
+  return '/api';
+}
+function apiToken() {
+  return (document.getElementById('inp-token')?.value || '').trim();
+}
+function addToken(url) {
+  const t = apiToken();
+  if (!t) return url;
+  return url + (url.includes('?') ? '&' : '?') + 'token=' + encodeURIComponent(t);
+}
+async function fetchApi(path, timeout=15000) {
+  const url = addToken(apiBase() + path);
+  const ctrl = new AbortController();
+  const tid = setTimeout(()=>ctrl.abort(), timeout);
+  try {
+    const r = await fetch(url, {signal: ctrl.signal});
+    clearTimeout(tid);
+    if (!r.ok) throw new Error(`HTTP ${r.status}`);
+    return await r.json();
+  } catch(e) {
+    clearTimeout(tid);
+    throw e;
+  }
+}
+
+function setApiStatus(msg, color='var(--text-secondary)') {
+  const el = document.getElementById('api-status');
+  el.style.color = color;
+  el.textContent = msg;
+}
+
+// ── APPLY INPUTS ───────────────────────────────────────────────────────
+function applyManualInputs(){
+  state.lat = parseFloat(document.getElementById('inp-lat').value) || state.lat;
+  state.lon = parseFloat(document.getElementById('inp-lon').value) || state.lon;
+  state.wd  = parseFloat(document.getElementById('inp-wd').value) || state.wd;
+  state.ws  = parseFloat(document.getElementById('inp-ws').value) || state.ws;
+  state.temp= parseFloat(document.getElementById('inp-temp').value) || 0;
+  state.rh  = parseFloat(document.getElementById('inp-rh').value) || 0;
+  map.panTo([state.lat, state.lon]);
+  refreshAll();
+}
+
+function refreshAll(){
+  drawIgnitionMarker();
+  drawFireLayers();
+  drawWindArrow();
+  drawFacilities();
+  updateFrameUI();
+  updateWeatherUI();
+  document.getElementById('coord-display').textContent =
+    `${state.lat.toFixed(4)}°N, ${state.lon.toFixed(4)}°E`;
+}
+
+function updateWeatherUI(){
+  document.getElementById('w-dir').textContent = windDir(state.wd);
+  document.getElementById('w-deg').textContent = state.wd.toFixed(0)+'°';
+  document.getElementById('w-ws').textContent = state.ws.toFixed(1);
+  document.getElementById('w-temp').textContent = state.temp.toFixed(1);
+  document.getElementById('w-rh').textContent = state.rh.toFixed(0);
+}
+
+// ── BRIEFING PANEL ─────────────────────────────────────────────────────
+function toggleBriefPanel() {
+  document.getElementById('brief-panel').classList.toggle('open');
+}
+
+function updateBriefPanel(content, updatedAt) {
+  const badge = document.getElementById('brief-handle-badge');
+  badge.classList.add('visible');
+  document.getElementById('brief-handle-summary').textContent = content.split('\n')[0] || '분석 완료';
+  document.getElementById('brief-sections').innerHTML = `
+    <div class="brief-section">
+      <div class="brief-section-title">📌 분석 일시: ${updatedAt}</div>
+      <div class="brief-content">${content}</div>
+    </div>`;
+  document.getElementById('brief-panel').classList.add('open');
+}
+
+// ── ANALYSIS ───────────────────────────────────────────────────────────
+async function runAnalysis(){
+  applyManualInputs();
+  const now = new Date().toLocaleString('ko-KR');
+  setApiStatus('기상 불러오는 중...', 'var(--accent-warn)');
+
+  // 1) Weather
+  try {
+    const w = await fetchApi(`/weather?lat=${state.lat}&lon=${state.lon}`);
+    if (w && !w.error) {
+      state.wd   = parseFloat(w.wd)   || state.wd;
+      state.ws   = parseFloat(w.ws)   || state.ws;
+      state.temp = w.temp_c != null ? parseFloat(w.temp_c) : state.temp;
+      state.rh   = w.rh_pct  != null ? parseFloat(w.rh_pct)  : state.rh;
+      document.getElementById('inp-wd').value  = state.wd;
+      document.getElementById('inp-ws').value  = state.ws;
+      document.getElementById('inp-temp').value = state.temp;
+      document.getElementById('inp-rh').value  = state.rh;
+      document.getElementById('weather-src').textContent = `${w.source || 'API'} · ${now}`;
+      updateWeatherUI();
+    }
+  } catch(e) {
+    document.getElementById('weather-src').textContent = `⚠ 기상 API 실패 — 수동값 사용 (${e.message})`;
+  }
+
+  // 2) Fire risk
+  setApiStatus('산불위험예보 불러오는 중...', 'var(--accent-warn)');
+  try {
+    const fr = await fetchApi('/fire_risk');
+    if (fr && !fr.error) {
+      const items = fr.items || [];
+      const gg = items.filter(it => String(it.doname||'').includes('경기'));
+      const cur = (gg.length ? gg : items).sort((a,b)=>String(b.analdate||'').localeCompare(String(a.analdate||'')))[0] || {};
+      const grade = parseInt(cur.std || cur.riskgrade || 0);
+      if (grade >= 1 && grade <= 6) setRiskGrade(grade);
+    }
+  } catch(e) { /* 위험예보 실패 무시 */ }
+
+  // 3) Brief
+  setApiStatus('브리핑 생성 중...', 'var(--accent-warn)');
+  refreshAll();
+  try {
+    const params = new URLSearchParams({
+      fire_name: state.demoLabel || '지도 클릭 분석',
+      lat: state.lat, lon: state.lon,
+      wd: state.wd, ws: state.ws,
+      temp_c: state.temp, rh_pct: state.rh,
+      h: state.h, steps: state.totalFrames,
+      wd_mode: 'FROM', drift: 0.35,
+    });
+    const b = await fetchApi(`/brief?${params}`, 60000);
+    if (b && !b.error) {
+      const txt = b.brief_text || JSON.stringify(b);
+      const at  = b.updated_at || now;
+      updateBriefPanel(txt, at);
+      setApiStatus(`브리핑 완료 · ${at}`, 'var(--accent-green)');
+    } else {
+      throw new Error(b?.error || 'empty');
+    }
+  } catch(e) {
+    // fallback: local brief
+    const sites = enrichFacilities();
+    const nearest = sites[0];
+    const fallback =
+`⚠ 서버 브리핑 실패 (${e.message}) — 로컬 계산값\n\n` +
+`발화점: ${state.lat.toFixed(4)}°N, ${state.lon.toFixed(4)}°E\n` +
+`기상: ${windDir(state.wd)} (${state.wd.toFixed(0)}°), ` +
+`${state.ws.toFixed(1)}m/s, ${state.temp.toFixed(1)}℃, ${state.rh.toFixed(0)}%\n\n` +
+`최근접 경보시설: ${nearest ? nearest.name : '—'} (${nearest ? fmtDist(nearest.distance_m) : '—'})\n` +
+`판정: ${nearest ? (nearest.covered ? '⚠️ 피해범위 내 — 즉시 경보 권고' : '✅ 피해범위 밖 — 지속 모니터링') : '—'}\n\n` +
+`확산 예측 (${state.h}h, ${state.totalFrames}단계)\n` +
+`장축 최대: ${((state.ws * 3.6) * state.h * 0.42).toFixed(2)} km\n` +
+`단축 최대: ${((state.ws * 3.6) * state.h * 0.42 * 0.4).toFixed(2)} km`;
+    updateBriefPanel(fallback, now);
+    setApiStatus(`⚠ 서버 연결 실패 — 로컬 계산`, 'var(--accent-danger)');
+  }
+
+  if(!state.playing) toggleAnimation();
+  document.getElementById('fire-popup').style.display = 'flex';
+  document.getElementById('fire-popup').style.flexDirection = 'column';
+}
+
+function setRiskGrade(grade){
+  document.querySelectorAll('.risk-block').forEach(el=>{
+    el.classList.toggle('active', parseInt(el.dataset.grade)===grade);
+  });
+  const labels = {1:'매우높음',2:'높음',3:'다소높음',4:'보통',5:'낮음',6:'매우낮음'};
+  document.getElementById('risk-info').textContent = `현재 등급: ${grade}등급 (${labels[grade]||'—'})`;
+}
+
+async function fetchTodayFire(){
+  setApiStatus('금일 산불 조회 중...', 'var(--accent-warn)');
+  document.getElementById('fire-list').innerHTML = '';
+  try {
+    const d = await fetchApi('/today_fire?gyeonggi_only=1', 20000);
+    if (d?.error) throw new Error(d.error);
+    const allItems = d?.items || [];
+    // client-side 경기도 필터 (주소에 경기 포함 또는 gyeonggi_only 파라미터 미작동 시 보완)
+    const items = allItems.filter(it => {
+      const addr = String(it.address || it.sigungu || it.sido || '');
+      return addr.includes('경기') || addr === '' || (!addr.includes('충청') && !addr.includes('강원') && !addr.includes('전라') && !addr.includes('경상') && !addr.includes('제주') && !addr.includes('충북') && !addr.includes('충남') && !addr.includes('전북') && !addr.includes('전남') && !addr.includes('경북') && !addr.includes('경남') && !addr.includes('강원') && !addr.includes('세종') && !addr.includes('대전') && !addr.includes('광주') && !addr.includes('부산') && !addr.includes('대구') && !addr.includes('울산'));
+    });
+    setApiStatus(`경기도 산불 ${items.length}건 조회됨 — 선택하세요`, items.length ? 'var(--accent-danger)' : 'var(--accent-green)');
+
+    if (items.length) {
+      const banner = document.getElementById('alert-banner');
+      document.getElementById('alert-text').textContent = `경기도 산불 ${items.length}건 감지`;
+      banner.style.display = 'flex';
+      setTimeout(()=>{ banner.style.display='none'; }, 5000);
+
+      // 리스트 렌더링
+      const listEl = document.getElementById('fire-list');
+      listEl.innerHTML = items.map((item, i) => {
+        const addr = item.address || item.sigungu || `${parseFloat(item.lat||0).toFixed(4)}°N`;
+        const status = item.status_name || item.step_name || '진행중';
+        const lat = parseFloat(item.lat);
+        const lon = parseFloat(item.lon);
+        const hasCoord = !isNaN(lat) && !isNaN(lon);
+        return `<div class="facility-item" id="fire-item-${i}"
+          onclick="selectFireItem(${i}, ${lat||0}, ${lon||0})"
+          style="cursor:${hasCoord?'pointer':'default'};opacity:${hasCoord?1:0.5}">
+          <div class="facility-badge badge-danger" style="font-size:11px;">${i+1}</div>
+          <div class="facility-info">
+            <div class="facility-name" style="font-size:11px;">${addr}</div>
+            <div class="facility-meta">
+              <span style="color:var(--accent-danger);">🔥 ${status}</span>
+              ${hasCoord ? `<span style="color:var(--text-dim);margin-left:4px;">${lat.toFixed(4)}°N</span>` : '<span style="color:var(--text-dim);">좌표 없음</span>'}
+            </div>
+          </div>
+          ${hasCoord ? '<span style="font-size:9px;color:var(--accent-blue);padding-top:2px;">선택▶</span>' : ''}
+        </div>`;
+      }).join('');
+    } else {
+      document.getElementById('fire-list').innerHTML =
+        '<div style="font-size:10px;color:var(--text-dim);text-align:center;padding:6px 0;">금일 경기도 산불 없음</div>';
+    }
+  } catch(e) {
+    setApiStatus(`⚠ 조회 실패: ${e.message}`, 'var(--accent-danger)');
+  }
+}
+
+function selectFireItem(idx, lat, lon) {
+  if (isNaN(lat) || isNaN(lon)) return;
+  // 선택 하이라이트
+  document.querySelectorAll('[id^="fire-item-"]').forEach(el => el.classList.remove('selected'));
+  const el = document.getElementById(`fire-item-${idx}`);
+  if (el) el.classList.add('selected');
+
+  // 발화점 이동
+  state.lat = lat;
+  state.lon = lon;
+  document.getElementById('inp-lat').value = lat.toFixed(6);
+  document.getElementById('inp-lon').value = lon.toFixed(6);
+  map.flyTo([lat, lon], 13, {duration: 1.2});
+  refreshAll();
+
+  // 알림
+  setApiStatus(`🔥 ${idx+1}번 산불 발화점 선택됨`, 'var(--accent-fire)');
+}
+
+async function autoScan(){
+  setApiStatus('자동분석 중...', 'var(--accent-warn)');
+  try {
+    const d = await fetchApi('/auto_scan?telegram=1', 90000);
+    if (d?.error) throw new Error(d.error);
+    const analyzed = (d?.analyzed || []).length;
+    const latest   = (d?.latest   || [])[0];
+    setApiStatus(`스캔 완료 · 신규 ${analyzed}건`, 'var(--accent-green)');
+    if (latest?.lat && latest?.lon) {
+      state.lat = parseFloat(latest.lat);
+      state.lon = parseFloat(latest.lon);
+      document.getElementById('inp-lat').value = state.lat;
+      document.getElementById('inp-lon').value = state.lon;
+      const w = latest.weather || {};
+      if (w.wd != null) { state.wd = parseFloat(w.wd); document.getElementById('inp-wd').value = state.wd; }
+      if (w.ws != null) { state.ws = parseFloat(w.ws); document.getElementById('inp-ws').value = state.ws; }
+      map.panTo([state.lat, state.lon]);
+      runAnalysis();
+    }
+  } catch(e) {
+    setApiStatus(`⚠ 자동분석 실패: ${e.message}`, 'var(--accent-danger)');
+  }
+}
+
+// ── PDF EXPORT (html2canvas + print window) ───────────────────────────
+async function exportPDF() {
+  const statusEl = document.getElementById('pdf-status');
+  statusEl.textContent = '지도 캡처 중...';
+  statusEl.style.color = 'var(--accent-warn)';
+
+  try {
+    // 1. 발화점 중심으로 줌인 후 캡처
+    const prevCenter = map.getCenter();
+    const prevZoom = map.getZoom();
+    map.setView([state.lat, state.lon], 13, {animate: false});
+    // 타일 로딩 대기
+    await new Promise(r => setTimeout(r, 1800));
+
+    const mapEl = document.getElementById('map');
+    const mapCanvas = await html2canvas(mapEl, {
+      useCORS: true, allowTaint: true, logging: false,
+      width: mapEl.offsetWidth, height: mapEl.offsetHeight,
+      ignoreElements: el => el.id === 'overlay',
+    });
+    const mapImg = mapCanvas.toDataURL('image/jpeg', 0.88);
+
+    // 원래 뷰로 복원
+    map.setView(prevCenter, prevZoom, {animate: false});
+
+    // 2. Collect analysis data
+    const now = new Date().toLocaleString('ko-KR');
+    const sites = enrichFacilities().slice(0, 5);
+    const riskEl = document.querySelector('.risk-block.active');
+    const riskText = riskEl ? riskEl.dataset.grade + '등급' : '—';
+    const riskDesc = document.getElementById('risk-info')?.textContent || '';
+    const briefText = document.getElementById('brief-sections')?.innerText?.trim() || '분석 전';
+    const majorKm = ((state.ws * 3.6) * state.h * 0.42).toFixed(2);
+    const minorKm = ((state.ws * 3.6) * state.h * 0.42 * 0.4).toFixed(2);
+
+    const gradeColors = {1:'#F8A3A6',2:'#F7C66A',3:'#F0F2B2',4:'#BEEAD0',5:'#C8EEE8',6:'#BFD8EA'};
+    const gc = gradeColors[parseInt(riskEl?.dataset.grade)] || '#eee';
+
+    const facilityRows = sites.map((s,i) => `
+      <tr style="background:${i%2?'#f9f9f9':'#fff'}">
+        <td>${i+1}</td>
+        <td><b>${s.name}</b></td>
+        <td>${s.city||'—'}</td>
+        <td>${fmtDist(s.distance_m)}</td>
+        <td>${fmtDist(s.radius_m)}</td>
+        <td style="color:${s.covered?'#c0392b':'#1a7a2a'};font-weight:700;">${s.covered?'⚠ 피해범위 내':'✓ 범위 밖'}</td>
+      </tr>`).join('');
+
+    // 3. Build print HTML
+    const printHTML = `<!DOCTYPE html>
+<html lang="ko"><head>
+<meta charset="UTF-8"/>
+<title>G-DAPS 분석결과</title>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;600;700;800&display=swap" rel="stylesheet"/>
+<style>
+  *{margin:0;padding:0;box-sizing:border-box;}
+  body{font-family:'Noto Sans KR',sans-serif;font-size:11px;color:#222;background:#fff;}
+  @page{size:A4;margin:15mm 18mm;}
+  @media print{.no-print{display:none!important;}}
+  .header{background:#141c2c;color:#fff;padding:14px 18px;display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;border-radius:6px;}
+  .logo{font-size:22px;font-weight:800;color:#ff5c2b;letter-spacing:2px;}
+  .header-sub{font-size:10px;color:#8892a4;margin-top:3px;}
+  .header-right{text-align:right;font-size:10px;color:#8892a4;}
+  h2{font-size:12px;font-weight:700;color:#1a1a2e;border-left:3px solid #ff5c2b;padding-left:8px;margin:12px 0 6px;}
+  .map-img{width:100%;border-radius:6px;border:1px solid #e0e0e0;display:block;margin-bottom:12px;}
+  .info-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px;}
+  .info-box{background:#f8f9fb;border-radius:6px;padding:10px 12px;}
+  .info-box .label{font-size:9px;color:#888;font-weight:600;text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px;}
+  .info-box .val{font-size:13px;font-weight:700;color:#222;}
+  table{width:100%;border-collapse:collapse;font-size:10px;margin-bottom:12px;}
+  th{background:#141c2c;color:#fff;padding:6px 8px;text-align:left;font-weight:600;}
+  td{padding:5px 8px;border-bottom:1px solid #f0f0f0;}
+  .risk-badge{display:inline-block;background:${gc};border-radius:6px;padding:5px 14px;font-weight:700;font-size:13px;color:#333;}
+  .brief-box{background:#f8f9fb;border-radius:6px;padding:12px;white-space:pre-wrap;line-height:1.8;font-size:10px;color:#444;border:1px solid #e8e8e8;}
+  .footer{margin-top:14px;border-top:1px solid #e0e0e0;padding-top:8px;font-size:9px;color:#aaa;text-align:center;}
+  .print-btn{position:fixed;bottom:20px;right:20px;background:#ff5c2b;color:#fff;border:none;border-radius:8px;padding:10px 20px;font-family:inherit;font-size:13px;font-weight:700;cursor:pointer;box-shadow:0 4px 16px rgba(255,92,43,.4);}
+</style>
+</head><body>
+<button class="print-btn no-print" onclick="window.print()">🖨 PDF로 저장</button>
+
+<div class="header">
+  <div>
+    <div class="logo">G-DAPS</div>
+    <div class="header-sub">산불 확산 예측 시스템 — 분석 결과 보고서</div>
+  </div>
+  <div class="header-right">출력일시<br/><b style="color:#fff">${now}</b></div>
+</div>
+
+<h2>1. 발화지점 및 확산 예측 지도</h2>
+<img class="map-img" src="${mapImg}"/>
+
+<div class="info-grid">
+  <div class="info-box"><div class="label">발화점 좌표</div><div class="val">${state.lat.toFixed(5)}°N, ${state.lon.toFixed(5)}°E</div></div>
+  <div class="info-box"><div class="label">풍향 / 풍속</div><div class="val">${windDir(state.wd)} ${state.wd.toFixed(0)}° / ${state.ws.toFixed(1)} m/s</div></div>
+  <div class="info-box"><div class="label">기온 / 습도</div><div class="val">${state.temp.toFixed(1)}℃ / ${state.rh.toFixed(0)}%</div></div>
+  <div class="info-box"><div class="label">확산 예측 (${state.h}h)</div><div class="val">장축 ${majorKm}km · 단축 ${minorKm}km</div></div>
+</div>
+
+<h2>2. 발화점 기준 인근 경보시설</h2>
+<table>
+  <thead><tr><th>순위</th><th>시설명</th><th>시군</th><th>직선거리</th><th>가청반경</th><th>판정</th></tr></thead>
+  <tbody>${facilityRows}</tbody>
+</table>
+
+<h2>3. 산불위험예보 (경기도)</h2>
+<div style="margin-bottom:12px;">
+  <span class="risk-badge">${riskText}</span>
+  <span style="margin-left:10px;color:#555;font-size:10px;">${riskDesc}</span>
+</div>
+
+<h2>4. 분석 브리핑</h2>
+<div class="brief-box">${briefText}</div>
+
+<div class="footer">G-DAPS 산불 확산 예측 시스템 · 출력일시: ${now}</div>
+</body></html>`;
+
+    // 4. Open print window
+    const win = window.open('', '_blank', 'width=900,height=1200');
+    win.document.write(printHTML);
+    win.document.close();
+    statusEl.textContent = '✅ 출력 창이 열렸습니다';
+    statusEl.style.color = 'var(--accent-green)';
+    setTimeout(()=>{ statusEl.textContent=''; }, 4000);
+
+  } catch(e) {
+    statusEl.textContent = '⚠ PDF 오류: ' + e.message;
+    statusEl.style.color = 'var(--accent-danger)';
+    console.error(e);
+  }
+}
+
+// ── TWEAKS ─────────────────────────────────────────────────────────────
+function toggleTweaks(){
+  const p = document.getElementById('tweaks-panel');
+  p.style.display = p.style.display==='block' ? 'none' : 'block';
+}
+
+// Register tweaks edit mode
+window.addEventListener('message', e => {
+  if(e.data?.type==='__activate_edit_mode') document.getElementById('tweaks-panel').style.display='block';
+  if(e.data?.type==='__deactivate_edit_mode') document.getElementById('tweaks-panel').style.display='none';
+});
+window.parent.postMessage({type:'__edit_mode_available'},'*');
+
+// ── CLOCK ──────────────────────────────────────────────────────────────
+function updateClock(){
+  document.getElementById('clock-display').textContent =
+    new Date().toLocaleTimeString('ko-KR',{hour:'2-digit',minute:'2-digit',second:'2-digit'});
+}
+setInterval(updateClock, 1000);
+updateClock();
+
+updateFrameUI();
+updateWeatherUI();
+updateDemoClickStatus();
+</script>
+</body>
+</html>

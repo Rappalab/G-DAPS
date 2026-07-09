@@ -1,0 +1,14 @@
+[Unit]
+Description=G-DAPS Flask API
+After=network.target
+
+[Service]
+Type=simple
+WorkingDirectory=/opt/gdaps
+EnvironmentFile=/opt/gdaps/.env
+ExecStart=/opt/gdaps/scripts/start_api.sh
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

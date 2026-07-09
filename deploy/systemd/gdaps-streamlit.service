@@ -1,0 +1,14 @@
+[Unit]
+Description=G-DAPS Streamlit UI optional
+After=network.target gdaps-api.service
+
+[Service]
+Type=simple
+WorkingDirectory=/opt/gdaps
+EnvironmentFile=/opt/gdaps/.env
+ExecStart=/opt/gdaps/scripts/start_streamlit.sh
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

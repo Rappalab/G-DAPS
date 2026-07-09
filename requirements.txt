@@ -1,0 +1,8 @@
+streamlit==1.37.1
+flask==3.0.3
+gunicorn==22.0.0
+shapely==2.0.5
+folium==0.17.0
+streamlit-folium==0.22.0
+requests==2.32.3
+python-dotenv==1.0.1
